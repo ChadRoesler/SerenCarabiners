@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "seren-carabiners"
+description = "Carabiners (.kbh): the packages that clip the Seren system onto a model's harness - Claude Code first."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+dynamic = ["version"]
+# Standard library only, on purpose: a harness box needs Python and nothing
+# else. seren_meninges and PyYAML are used when present, never required.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+kbh = "kbh.cli:main"
+
+[tool.setuptools]
+packages = ["kbh", "kbh.carabiners", "kbh.carabiners.claude", "kbh.carabiners._template"]
+
+[tool.setuptools.package-data]
+"kbh.carabiners.claude" = ["framing.md", "config.yaml"]
+"kbh.carabiners._template" = ["framing.md", "config.yaml"]
+
+[tool.setuptools.dynamic]
+version = { attr = "kbh.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

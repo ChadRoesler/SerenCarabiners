@@ -1,0 +1,34 @@
+# {carabiner}.yaml - how the {display} carabiner rolls on THIS box.
+# Pushed out of {carabiner}.kbh by `install`; read by every verb afterwards
+# (found beside the .kbh, or --config PATH, or KBH_CONFIG, or ~/.seren/kbh/).
+# Relative paths are relative to this file's folder. Edit freely; a new
+# {carabiner}.kbh dropped in never overwrites this file.
+carabiner: {carabiner}
+
+# Where wakes run: the model's working folder (its project, its CLAUDE.md).
+project: {project}
+
+# What runs the .kbh from hooks and ripples. A service account hands a
+# process its own PATH, so name the python outright.
+python: {python}
+
+# The folder of connection files: one per Seren service the harness talks
+# to, each the service's `server:` block (host, port, token or a pointer).
+# `kbh claude register bundle` writes them.
+connections: {connections}
+
+# What `kbh claude register apply` registers with Claude Code: a name the
+# model will see -> a connection file in `connections`. One door is the
+# single-connection shape: the Workbench alone.
+servers:
+{servers}
+# Margin's connection file, for the bookmark hook at session start. Blank = no hook.
+bookmark: {bookmark}
+
+# The text a woken session is given first: who it is, where its memory is,
+# when to stop. A file beside this one, yours to edit; blank = the
+# carabiner's built-in default. A named file that is missing refuses to wake.
+framing: framing.md
+
+wake:
+  timeout_seconds: 900

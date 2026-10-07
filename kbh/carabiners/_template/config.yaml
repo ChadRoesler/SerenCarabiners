@@ -1,0 +1,13 @@
+# {carabiner}.yaml - how the {display} carabiner rolls on THIS box.
+# Pushed out of {carabiner}.kbh by `install`; read by every verb afterwards.
+# Relative paths are relative to this file's folder. Never overwritten.
+carabiner: {carabiner}
+project: {project}
+python: {python}
+connections: {connections}
+servers:
+{servers}
+bookmark: {bookmark}
+framing: framing.md
+wake:
+  timeout_seconds: 900
