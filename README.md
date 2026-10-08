@@ -26,7 +26,7 @@ points the harness at).
 
 ```bash
 python claude.kbh list
-python claude.kbh claude register bundle --from-yamls ./from-nuc --host nuc --into ~/.seren/nuc --prefix wren- --only workbench
+KBH_TOKEN_WREN_WORKBENCH=... python claude.kbh claude install --project ~/work --server wren-workbench=http://nuc:7255 --bookmark http://nuc:7251
 python claude.kbh claude bookmark install ~/.seren/nuc/margin.yaml
 python claude.kbh claude wake --project ~/work --yaml 2      # the lines for an Observatory's ripple:
 python claude.kbh claude belay --project ~/work --connection ~/.seren/nuc/workbench.yaml --margin ~/.seren/nuc/margin.yaml --dry-wake
@@ -35,12 +35,27 @@ python claude.kbh claude belay --project ~/work --connection ~/.seren/nuc/workbe
 A `.kbh` is a Python zipapp: Python 3.8+ and nothing installed. Standard
 library only, on purpose; `seren_meninges` and PyYAML are used when present.
 
-**Connection files** are the one new thing. A harness is rarely on the brain's
-box, so each Seren service the harness talks to gets a small file on the
-harness box: the service's `server:` block (host, port, and a token or a
-pointer to one). `register` writes them from a bundle or from a folder of the
-brain box's service yamls; the harness's headers helper reads them when it
-connects; a rotated token needs no re-registration.
+**A connection is a route**: a url and a token, dropped straight into the
+clip's yaml. A harness is rarely on the brain's box, and nothing is copied from
+that box:
+
+```yaml
+servers:
+  wren-workbench:
+    url: http://nuc:7255
+    bearer_token: "..."          # or bearer_token_env: NAME, or bearer_token_keyring: "svc/user"
+bookmark:
+  url: http://nuc:7251
+  bearer_token_env: WREN_MARGIN_TOKEN
+```
+
+The harness's headers helper and its session-start hook read the route by
+reference (`claude.yaml#wren-workbench`, `claude.yaml#bookmark`) when they run,
+so a rotated token needs no re-registration. `install --server NAME=URL` takes
+the token from `KBH_TOKEN_<NAME>` in the environment (never a command line)
+and makes the yaml 0600. When the service runs on the same box, a **connection
+file** (the service's own config, or just its `server:` block) does instead:
+`--server NAME=FILE`.
 
 ## The shape, installed
 
@@ -81,9 +96,9 @@ yaml beside it, named for the harness, that every verb reads:
 ```yaml
 # claude.yaml
 carabiner: claude
-project: D:\work\project            # where wakes run
+project: D:\work\project                    # where wakes run
 python: C:\...\venvs\observatory\Scripts\python.exe   # runs the .kbh from hooks and ripples
-connections: C:\Users\alice\seren\wren\nuc      # the folder of connection files
+connections: C:\Users\alice\seren\brain\routes    # the folder of connection files
 servers:                                     # what `register apply` registers
   wren-workbench: workbench.yaml
 bookmark: margin.yaml                        # Margin's connection file; blank = no hook
@@ -122,7 +137,7 @@ variable, for a box that keeps its carabiners in one place.
 
 ## Why
 
-The 6-7 Oct 2026 cutover (the assistant's brain from a desktop to a NUC) ran every
+A cutover (a model's brain from a desktop to a NUC) ran every
 verb by hand and each broke once: the wake command carried server names from
 install day; `claude` was not on the *service's* PATH; the bookmark hook pointed
 at a Margin that had moved; five MCP entries became one and a running session
@@ -141,6 +156,48 @@ kbh/install.py       push config, framing, custom; run the hooks     kbh/custom.
 build.py             -> dist/<name>.kbh; `python build.py hermes --from ./mine` for your own
 tests/               pytest; a fake claude, a stand-in Margin, no live service touched
 ```
+
+## Build, release, host
+
+A `.kbh` is the whole deliverable, so there is no package index in the loop:
+build it, put the file somewhere, point the box at it.
+
+**Build** (any python, standard library only):
+
+```bash
+python build.py                      # dist/<name>.kbh for every shipped carabiner
+python build.py claude               # just claude.kbh
+python build.py --all-in-one         # dist/seren.kbh, every shipped carabiner in one file
+python build.py claude --with-custom ./mine --as claude-mine   # your custom/ layer baked in
+KBH_DIST=/srv/kbh python build.py    # write somewhere else
+```
+
+**Release**: bump `__version__` in `kbh/__init__.py`, commit, tag it `v<that>`,
+push the tag. `.github/workflows/release.yml` re-runs the tests on Linux and
+Windows, refuses a tag that does not match the version, builds every `.kbh`
+plus `seren.kbh`, runs each one standalone from an empty directory, and
+publishes them with sha256 files as GitHub release assets:
+
+```
+https://github.com/<owner>/SerenCarabiners/releases/download/v0.1.0/claude.kbh
+https://github.com/<owner>/SerenCarabiners/releases/download/v0.1.0/claude.kbh.sha256
+```
+
+**Host**: the asset name `<carabiner>.kbh` is the contract. Anything that can
+serve a file is a host: the GitHub release above, a folder on a share, a plain
+`http://` directory (a *wheelhouse*). Starwright's carabiner card speaks all
+three, in this order of precedence:
+
+```bash
+bash seren-carabiner-setup.sh --kbh ./claude.kbh ...                 # a file you have
+bash seren-carabiner-setup.sh --local http://files.lan/kbh ...       # a wheelhouse (dir or URL)
+bash seren-carabiner-setup.sh --ref v0.1.0 [--repo you/SerenCarabiners] ...   # a release asset
+bash seren-carabiner-setup.sh ...                                    # else: build from a checkout beside it
+```
+
+A box with a `.kbh` and python needs nothing from this repository. Updating is
+replacing the file: the yaml, framing and `custom/` beside it are never
+overwritten by an install, so a new `.kbh` picks up where the old one left off.
 
 ## Development
 

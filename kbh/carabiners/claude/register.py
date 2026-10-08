@@ -18,7 +18,7 @@ run by the harness when it connects. The connection file is the service's
 
 A BUNDLE is how the brain box's tokens reach the harness box: JSON,
 {"instance": "wren", "services": {"workbench": {"host": "nuc", "port": 7255,
-"bearer_token": "..."}}} - or, the user's way, a folder of the brain box's service
+"bearer_token": "..."}}} - or a folder of the brain box's service
 yamls (--from-yamls), each cut to its server block with --host put in for the
 bind address. Either way: one connection file per service into --into, and
 one MCP entry per service (or only the ones named with --only; the Workbench
@@ -62,10 +62,7 @@ def add(name: str, connection_path: str, dry: bool = False, python: Optional[str
     try:
         conn = read_connection(connection_path)
     except Exception as e:  # noqa: BLE001
-        print(f"cannot read the connection file {connection_path}: {type(e).__name__}: {e}", file=sys.stderr)
-        return 1
-    if not conn.port:
-        print(f"{connection_path} names no port", file=sys.stderr)
+        print(f"cannot read the connection {connection_path}: {type(e).__name__}: {e}", file=sys.stderr)
         return 1
     entry = entry_for(connection_path, conn, python)
     if dry:

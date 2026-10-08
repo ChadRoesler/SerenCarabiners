@@ -64,7 +64,7 @@ class Carabiner:
         import json
         from .tokens import headers_for
         if len(argv) != 1:
-            print(f"usage: kbh {self.name} headers <connection file>", file=sys.stderr)
+            print(f"usage: kbh {self.name} headers <connection file | config.yaml#server-name>", file=sys.stderr)
             return 64
         try:
             print(json.dumps(headers_for(argv[0])))
@@ -119,14 +119,12 @@ class Carabiner:
             print(f"usage: kbh {self.name} init --into DIR --project DIR [--python P] [--connections DIR] "
                   f"[--server NAME=FILE ...] [--bookmark FILE]", file=sys.stderr)
             return 64
-        servers: Dict[str, str] = {}
-        for i, a in enumerate(argv):
-            if i > 0 and argv[i - 1] == "--server" and "=" in a:
-                k, v = a.split("=", 1)
-                servers[k.strip()] = v.strip()
+        from .install import parse_servers, route_or_file
+        servers = parse_servers(argv)
+        bookmark = route_or_file(opt("--bookmark"), "bookmark", opt("--bookmark-token-env"))
         try:
             out = write_starter(self.name, self.display, into, opt("--project"), opt("--python"),
-                                opt("--connections"), servers, opt("--bookmark"), self.default_framing(),
+                                opt("--connections"), servers, bookmark, self.default_framing(),
                                 template=self.config_template())
         except FileExistsError as e:
             print(str(e), file=sys.stderr)

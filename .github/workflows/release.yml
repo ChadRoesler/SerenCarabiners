@@ -1,0 +1,122 @@
+name: Release
+
+# Tag it, get the .kbh files. One asset per shipped carabiner (claude.kbh, ...),
+# plus seren.kbh carrying every shipped carabiner, plus a sha256 for each.
+#
+# The Starwright carabiner card fetches them from here:
+#   https://github.com/<owner>/SerenCarabiners/releases/download/<tag>/<carabiner>.kbh
+# (bash seren-carabiner-setup.sh --ref v0.1.0 ...), so the asset names are a
+# contract: <carabiner>.kbh, exactly as `python build.py` writes them.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read          # widened to write only on the job that needs it
+
+jobs:
+  # Re-run the gates rather than trusting that the tagged commit was green on
+  # some earlier push. A tag can be pushed to any commit, including one that
+  # never ran CI.
+  verify:
+    name: Verify before release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.8", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install pytest
+      # Standard library only: no other install step, on purpose.
+      - run: python -m pytest -q
+
+  build:
+    name: Build and publish
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # only this job creates the release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # A released claude.kbh should answer `--version` with the tag it was cut
+      # from. The version lives in kbh/__init__.py; the tag is v<that>. Refuse
+      # to publish a mismatch rather than ship a 0.1.0 that calls itself v0.2.0.
+      - name: The binder's version matches the tag
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          got="$(python -c 'import kbh; print(kbh.__version__)')"
+          echo "tag $GITHUB_REF_NAME -> $want; kbh/__init__.py says $got"
+          [ "$got" = "$want" ] || { echo "VERSION MISMATCH: bump kbh.__version__ to $want (or tag v$got)"; exit 1; }
+
+      - name: Build every shipped carabiner, and the all-in-one
+        run: |
+          python build.py
+          python build.py --all-in-one
+          ls -la dist
+
+      # Prove the files we are about to publish run on a box with nothing but
+      # python, from an empty directory with no checkout: that is the entire
+      # promise of a .kbh. Each one must list itself and show its manifest.
+      - name: Smoke test the artifacts standalone
+        run: |
+          work="$(mktemp -d)"
+          cp dist/*.kbh "$work/"
+          cd "$work"
+          for f in *.kbh; do
+            echo "== $f"
+            python3 "$f" --version | tee -a out.txt
+            python3 "$f" list | tee -a out.txt
+          done
+          python3 claude.kbh claude manifest | tee -a out.txt
+          grep -q "claude" out.txt || { echo "claude.kbh lists no claude carabiner"; exit 1; }
+          grep -q "kbh ${GITHUB_REF_NAME#v}" out.txt || { echo "artifact does not report ${GITHUB_REF_NAME#v}"; exit 1; }
+
+      - name: Checksums
+        run: |
+          cd dist
+          for f in *.kbh; do sha256sum "$f" > "$f.sha256"; done
+          cat *.sha256
+
+      - name: Release notes
+        run: |
+          {
+            echo "## Seren Carabiners ${GITHUB_REF_NAME}"
+            echo
+            echo "One file per harness. Python and nothing else on the harness box."
+            echo
+            echo '```bash'
+            echo "curl -LO https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/claude.kbh"
+            echo "KBH_TOKEN_WREN_WORKBENCH=... python3 claude.kbh claude install --project ~/work \\"
+            echo "    --server wren-workbench=http://brain-box:7255 --bookmark http://brain-box:7251"
+            echo "python3 claude.kbh claude belay"
+            echo '```'
+            echo
+            echo "Or from Starwright: **Install Carabiners** on the splash, or"
+            echo "\`bash seren-carabiner-setup.sh --ref ${GITHUB_REF_NAME} --carabiner claude ...\`."
+            echo
+            echo "\`\`\`"
+            for f in dist/*.kbh; do
+              printf '%-14s sha256 %s  %s\n' "$(basename "$f")" "$(cut -d' ' -f1 "$f.sha256")" "$(du -h "$f" | cut -f1)"
+            done
+            echo "\`\`\`"
+          } > notes.md
+          cat notes.md
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: notes.md
+          files: |
+            dist/*.kbh
+            dist/*.kbh.sha256

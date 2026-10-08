@@ -1,14 +1,32 @@
 """
 kbh.tokens - connection files, and the token they point at.
 
-A CONNECTION FILE says where one Seren service is and how to present its
-bearer. It is the `server:` block of that service's own config, and nothing
-else - which is why a service's full config works as one too:
+A CONNECTION is a ROUTE: where one Seren service is and how to present its
+bearer - a URL and a token (or a pointer to one). It has three homes:
 
-    server:
-      host: nuc
-      port: 7255
-      bearer_token: "..."              # or bearer_token_env / bearer_token_keyring
+  - inline in the carabiner's own yaml (the usual form when the service is on
+    another box: drop in the uri and the token):
+
+        servers:
+          wren-workbench:
+            url: http://nuc:7255
+            bearer_token: "..."          # or bearer_token_env / bearer_token_keyring
+        bookmark:
+          url: http://nuc:7251
+          bearer_token_env: WREN_MARGIN_TOKEN
+
+    and is referred to as `<that yaml>#wren-workbench` (or `#bookmark`) by the
+    harness's headers helper and hooks, so nothing is copied anywhere.
+
+  - a CONNECTION FILE: a `server:` block, which a service's own full config is
+    too - the on-box form, when the service runs where the harness does:
+
+        server:
+          host: nuc           # or url: http://nuc:7255
+          port: 7255
+          bearer_token: "..."
+
+  - a token bundle entry (register bundle): {"url" | "host"+"port", "bearer_token..."}
 
 WHY FILES. The harness is rarely on the brain's box. Claude Code on the desktop
 has to present the NUC's Workbench its token; Claude Code keeps an MCP server's
@@ -29,6 +47,7 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from urllib.parse import urlsplit
 
 LOOPBACK = ("", "0.0.0.0", "::", None)
 
@@ -42,8 +61,12 @@ class Connection:
     bearer_token_keyring: str = ""
     path: str = ""                       # the file it came from
 
+    url: str = ""                        # set = the route as given; else built from host + port
+
     @property
     def base_url(self) -> str:
+        if self.url:
+            return self.url.rstrip("/")
         host = self.host if self.host not in LOOPBACK else "127.0.0.1"
         return f"http://{host}:{self.port}"
 
@@ -58,11 +81,15 @@ class Connection:
         return resolve_token(self.bearer_token, self.bearer_token_keyring, self.bearer_token_env)
 
     def to_server_block(self) -> Dict[str, Any]:
-        d: Dict[str, Any] = {"host": self.host, "port": self.port}
+        d: Dict[str, Any] = {"url": self.url} if self.url else {"host": self.host, "port": self.port}
         for k in ("bearer_token", "bearer_token_env", "bearer_token_keyring"):
             if getattr(self, k):
                 d[k] = getattr(self, k)
         return d
+
+    @property
+    def where(self) -> str:
+        return self.url or f"{self.host}:{self.port}"
 
 
 def resolve_token(inline: str = "", keyring_ref: str = "", env_var: str = "") -> str:
@@ -126,22 +153,57 @@ def _server_block_by_hand(text: str) -> Dict[str, Any]:
     return out
 
 
-def read_connection(path: str) -> Connection:
-    """The connection a file describes. Raises (does not return a silent
-    default) when the file cannot be read: a connection on defaults is a 401
-    later, with nothing in the log to say why."""
-    path = os.path.expanduser(path)
-    data = _read_yaml(path)                                  # OSError if missing: on purpose
-    server = data.get("server") if isinstance(data.get("server"), dict) else {}
+def connection_from_route(d: Dict[str, Any], path: str = "") -> Connection:
+    """A Connection from a route mapping: `url`, or `host` + `port`, plus the
+    token or its pointer. Raises ValueError when it names nowhere."""
+    url = str(d.get("url") or "").strip()
     try:
-        port = int(server.get("port") or 0)
+        port = int(d.get("port") or 0)
     except (TypeError, ValueError):
         port = 0
-    return Connection(host=str(server.get("host") or "127.0.0.1"), port=port,
-                      bearer_token=str(server.get("bearer_token") or ""),
-                      bearer_token_env=str(server.get("bearer_token_env") or ""),
-                      bearer_token_keyring=str(server.get("bearer_token_keyring") or ""),
+    if url:
+        u = urlsplit(url)
+        if u.scheme not in ("http", "https") or not u.hostname:
+            raise ValueError(f"not a usable url: {url}")
+        if u.username or u.password:
+            raise ValueError("a token never rides in the url: use bearer_token / bearer_token_env / bearer_token_keyring")
+        host, port = u.hostname, u.port or (443 if u.scheme == "https" else 80)
+    else:
+        host = str(d.get("host") or "127.0.0.1")
+        if port <= 0:
+            raise ValueError("a route needs a url, or a host and a port")
+    return Connection(host=host, port=port, url=url.rstrip("/"),
+                      bearer_token=str(d.get("bearer_token") or ""),
+                      bearer_token_env=str(d.get("bearer_token_env") or ""),
+                      bearer_token_keyring=str(d.get("bearer_token_keyring") or ""),
                       path=path)
+
+
+def read_connection(ref: str) -> Connection:
+    """The connection a reference names. Two forms:
+
+        <file>            a connection file (a `server:` block)
+        <yaml>#<name>     a route inline in a carabiner's yaml: servers.<name>,
+                          or its bookmark when <name> is "bookmark"
+
+    Raises (never a silent default) when it cannot be read: a connection on
+    defaults is a 401 later, with nothing in the log to say why."""
+    ref = os.path.expanduser(ref)
+    if "#" in ref and not os.path.isfile(ref):
+        path, _, name = ref.rpartition("#")
+        from .config import load                              # lazy: config imports this module
+        cfg = load(path)
+        route = cfg.bookmark if name == "bookmark" else cfg.servers.get(name)
+        if route is None or route == "":
+            raise KeyError(f"{path} has no server or bookmark named '{name}'")
+        if isinstance(route, dict):
+            return connection_from_route(route, path=ref)
+        return read_connection(cfg.connection(name))      # a file after all
+    data = _read_yaml(ref)                                   # OSError if missing: on purpose
+    server = data.get("server") if isinstance(data.get("server"), dict) else {}
+    if not server:
+        raise ValueError(f"{ref} has no server: block")
+    return connection_from_route(server, path=ref)
 
 
 # ── writing ───────────────────────────────────────────────────────────────────
@@ -173,19 +235,13 @@ def write_connection(path: str, conn: Connection, note: str = "") -> str:
 
 
 def connection_from_bundle_entry(name: str, entry: Dict[str, Any]) -> Connection:
-    """One entry of a token bundle: {"host", "port", "bearer_token" | "..._env" | "..._keyring"}."""
+    """One entry of a token bundle: {"url" | "host"+"port", "bearer_token" | "..._env" | "..._keyring"}."""
     if not _SAFE.match(name):
         raise ValueError(f"'{name}' is not a usable service name (letters, digits, _ . -)")
     try:
-        port = int(entry.get("port") or 0)
-    except (TypeError, ValueError):
-        raise ValueError(f"{name}: port is not a number") from None
-    if port <= 0:
-        raise ValueError(f"{name}: no port")
-    return Connection(host=str(entry.get("host") or "127.0.0.1"), port=port,
-                      bearer_token=str(entry.get("bearer_token") or ""),
-                      bearer_token_env=str(entry.get("bearer_token_env") or ""),
-                      bearer_token_keyring=str(entry.get("bearer_token_keyring") or ""))
+        return connection_from_route(entry)
+    except ValueError as e:
+        raise ValueError(f"{name}: {e}") from None
 
 
 def headers_for(path: str) -> Dict[str, str]:

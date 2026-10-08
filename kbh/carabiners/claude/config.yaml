@@ -18,11 +18,17 @@ python: {python}
 connections: {connections}
 
 # What `kbh claude register apply` registers with Claude Code: a name the
-# model will see -> a connection file in `connections`. One door is the
-# single-connection shape: the Workbench alone.
+# model will see -> a ROUTE. The Workbench alone is the single-door shape.
+# A route is the url and the token dropped in here (the service is on
+# another box; nothing copied from it):
+#   wren-workbench:
+#     url: http://nuc:7255
+#     bearer_token: "..."            # or bearer_token_env: NAME / bearer_token_keyring: "svc/user"
+# or a connection file in `connections` (the service's own config works):
+#   wren-workbench: workbench.yaml
 servers:
 {servers}
-# Margin's connection file, for the bookmark hook at session start. Blank = no hook.
+# Margin, for the bookmark hook at session start: a route or a file. Blank = no hook.
 bookmark: {bookmark}
 
 # The text a woken session is given first: who it is, where its memory is,
