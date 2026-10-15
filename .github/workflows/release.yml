@@ -80,6 +80,8 @@ jobs:
           done
           python3 claude.kbh claude manifest | tee -a out.txt
           grep -q "claude" out.txt || { echo "claude.kbh lists no claude carabiner"; exit 1; }
+          python3 codex.kbh codex manifest | tee -a out.txt
+          grep -q '"harness": "Codex"' out.txt || { echo "codex.kbh lists no codex carabiner"; exit 1; }
           grep -q "kbh ${GITHUB_REF_NAME#v}" out.txt || { echo "artifact does not report ${GITHUB_REF_NAME#v}"; exit 1; }
 
       - name: Checksums

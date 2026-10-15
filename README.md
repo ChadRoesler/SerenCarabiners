@@ -2,7 +2,8 @@
 
 Carabiners (`.kbh`, for Karabinerhaken) are the packages that clip the Seren
 system onto a model's **harness**: the program a model lives in. Claude Code
-first; then whatever else.
+first, Codex second (so the clip is proven on more than the one it was cut
+for); then whatever else.
 
 One carabiner per harness, never per Seren app. Anything in Seren that needs
 the harness asks the carabiner, and nothing else of Seren ever learns which
@@ -117,6 +118,33 @@ or wherever `--config` / `KBH_CONFIG` says; with it, the Observatory's ripple
 command is just `kbh claude wake --config claude.yaml --run {message}`, and
 changing the yaml changes the next wake.
 
+## Codex: the second harness
+
+`codex.kbh` does what `claude.kbh` does, in Codex's own terms (learned from
+codex-cli 0.162.1 and its source, and run end to end against the real binary
+with a stand-in model and MCP server, 14 Oct 2026):
+
+| Verb | In Codex |
+|---|---|
+| `register` | a `[mcp_servers.<name>]` table in `$CODEX_HOME/config.toml` with `http_headers_helper` = `kbh codex headers <connection>`: no token in Codex's files, a rotated one needs no re-registration. The file is edited by whole tables, everything else kept, the old one kept as `config.toml.seren-bak`; one that does not parse, or spells `mcp_servers` as an inline table or dotted keys, is not touched. |
+| `wake` | `codex exec -C <project> ... -` with the message on stdin and, **for that run only**, each server `default_tools_approval_mode=approve` and `required=true`. Without the approve, a headless Codex refuses every memory call ("requires approval, but approval policy is never"); with `required`, a memory server that is down stops the run instead of waking the model without it. The sandbox stays exec's read-only default. Margin's bookmark goes in the message itself. |
+| `bookmark` | a `SessionStart` hook in `$CODEX_HOME/hooks.json` (matcher `startup\|resume`) for the sessions you open. Codex runs a user hook only after you trust it once under `/hooks`; a wake does not depend on it, and the hook stays quiet inside a wake so the bookmark is not said twice. |
+| `due` | unsupported for now. `codex queue --thread <id>` puts a message into an existing session: the channel to try once a live session can be named. |
+
+Two things Codex does differently, both checked by `belay`: it runs the
+headers helper through `cmd /C` / `sh -c` with the **environment cleared** to
+a short list and 10 seconds to answer, so a route with `bearer_token_env`
+cannot reach the helper (keep the token in the yaml, 0600, or the keyring);
+and an npm install is a `codex.cmd` shim that needs node, so on Windows the
+carabiner follows it to the `codex.exe` it starts.
+
+```bash
+KBH_TOKEN_WREN_WORKBENCH=... python codex.kbh codex install --project ~/work --python /venv/bin/python     --server wren-workbench=http://nuc:7255 --bookmark margin.yaml
+python codex.kbh codex register apply
+python codex.kbh codex bookmark install          # then trust it once: codex, /hooks
+python codex.kbh codex belay --dry-wake
+```
+
 ## Write your own
 
 One carabiner per harness, named for it: `claude.kbh`, `hermes.kbh`,
@@ -151,10 +179,11 @@ note and the pain-point list are in the Seren punch list under "Carabiners".
 kbh/                 the binder: cli, connection files + tokens, settings merge, belay
 kbh/carabiners/      one subpackage per harness, each with a CARABINER class
   claude/            register.py  wake.py  bookmark.py  config.yaml  framing.md
+  codex/             the same, and common.py: config.toml read and edited by whole tables
   _template/         what `kbh new` copies
 kbh/install.py       push config, framing, custom; run the hooks     kbh/custom.py  the custom/ layer
 build.py             -> dist/<name>.kbh; `python build.py hermes --from ./mine` for your own
-tests/               pytest; a fake claude, a stand-in Margin, no live service touched
+tests/               pytest; a fake claude and codex, a stand-in Margin, no live service touched
 ```
 
 ## Build, release, host

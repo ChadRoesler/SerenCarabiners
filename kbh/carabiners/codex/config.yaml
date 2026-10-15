@@ -1,0 +1,42 @@
+# {carabiner}.yaml - how the {display} carabiner rolls on THIS box.
+# Pushed out of {carabiner}.kbh by `install`; read by every verb afterwards
+# (found beside the .kbh, or --config PATH, or KBH_CONFIG, or ~/.seren/kbh/).
+# Relative paths are relative to this file's folder. Edit freely; a new
+# {carabiner}.kbh dropped in never overwrites this file.
+carabiner: {carabiner}
+
+# Where wakes run: the model's working folder (its project, its AGENTS.md).
+project: {project}
+
+# What runs the .kbh from hooks and ripples. A service account hands a
+# process its own PATH, so name the python outright.
+python: {python}
+
+# The folder of connection files: one per Seren service the harness talks
+# to, each the service's `server:` block (host, port, token or a pointer).
+connections: {connections}
+
+# What `kbh codex register apply` writes into Codex's config.toml: a name the
+# model will see -> a ROUTE. The Workbench alone is the single-door shape.
+# A route is the url and the token dropped in here (the service is on
+# another box; nothing copied from it):
+#   wren-workbench:
+#     url: http://nuc:7255
+#     bearer_token: "..."            # or bearer_token_keyring: "svc/user" - NOT bearer_token_env:
+#                                    # Codex clears the helper's environment, so the variable never reaches it
+# or a connection file in `connections` (the service's own config works):
+#   wren-workbench: workbench.yaml
+servers:
+{servers}
+# Margin's bookmark: a route or a file. A wake puts it in the message; `kbh codex
+# bookmark install` adds a SessionStart hook for sessions you open (trust it
+# once under /hooks). Blank = neither.
+bookmark: {bookmark}
+
+# The text a woken session is given first: who it is, where its memory is,
+# when to stop. A file beside this one, yours to edit; blank = the
+# carabiner's built-in default. A named file that is missing refuses to wake.
+framing: framing.md
+
+wake:
+  timeout_seconds: 900

@@ -65,15 +65,17 @@ def hooks_with(path: str, event: str, marker: str) -> List[Dict[str, Any]]:
     return out
 
 
-def set_hook(path: str, event: str, marker: str, command: str = "", remove: bool = False) -> str:
-    """Add (replace) or remove our hook under `event`. Returns a one-line
-    account of what was done."""
+def set_hook(path: str, event: str, marker: str, command: str = "", remove: bool = False,
+             group: Dict[str, Any] = None, handler: Dict[str, Any] = None) -> str:
+    """Add (replace) or remove our hook under `event`. `group` adds keys to
+    its matcher group (a "matcher"), `handler` to the hook itself (a
+    "timeout", a "statusMessage"). Returns a one-line account of what was done."""
     path = os.path.expanduser(path)
     data = load(path)
     hooks = data.get("hooks") if isinstance(data.get("hooks"), dict) else {}
     entries = _strip(list(hooks.get(event) or []), marker)
     if not remove:
-        entries.append({"hooks": [{"type": "command", "command": command}]})
+        entries.append({**(group or {}), "hooks": [{"type": "command", "command": command, **(handler or {})}]})
     if entries:
         hooks[event] = entries
     else:

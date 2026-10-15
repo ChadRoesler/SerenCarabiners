@@ -27,6 +27,10 @@ def own_settings(tmp_path, monkeypatch):
     monkeypatch.setenv("SEREN_CLAUDE_JSON", str(cj))
     monkeypatch.setenv("SEREN_CLAUDE_SETTINGS", str(tmp_path / "settings.json"))
     monkeypatch.delenv("SEREN_CLAUDE_BIN", raising=False)
+    # And Codex's: its own CODEX_HOME, never ~/.codex (where a real config.toml and auth.json live).
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+    for var in ("SEREN_CODEX_BIN", "SEREN_CODEX_CONFIG", "SEREN_CODEX_HOOKS", "SEREN_KBH_WAKE"):
+        monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("PATH", str(tmp_path / "nothing-here"))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
