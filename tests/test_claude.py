@@ -37,6 +37,7 @@ def test_wake_reads_the_registration_now_frames_the_message_and_finds_claude_off
     assert 'review "draft 15" & say why' in call["stdin"], "the message reaches claude on stdin, quotes and all"
     assert "Nobody is in the room" in call["stdin"] and "draft_submitted" in call["stdin"], "framed"
     assert "mcp__" not in call["stdin"] and "wren-workbench" in call["stdin"]
+    assert call["wake_env"] == "1", "the woken session knows it was woken (its bookmark hook reads this)"
 
     # the servers change: five become one, nothing reinstalled
     _register_in_json(own_settings, user={"a": {"url": "x"}, "b": {"url": "y"}})
@@ -72,6 +73,18 @@ def test_the_framing_fills_every_slot():
     for slot in ("{message}", "{servers}", "{event}", "{when}"):
         assert slot not in text
     assert text.rstrip().endswith("the job") and "wren-workbench" in text and "wake-test" in text
+
+
+@pytest.mark.parametrize("carabiner", ["claude", "codex", "_template"])
+def test_a_wake_is_housekeeping_and_leaves_the_letters_closed(carabiner):
+    """18 Oct 2026: four wakes a night each wrote a letter (two thirds of the
+    margin was wake mail), and each opened the letters first - which marks
+    them read, so the awake session's mail was taken at 3 a.m. A wake does
+    its job and ends; a letter is the woken model's choice, not a step."""
+    here = os.path.join(os.path.dirname(cli.__file__), "carabiners", carabiner, "framing.md")
+    text = open(here, encoding="utf-8").read()
+    assert "Leave them closed" in text and "not a step" in text
+    assert "Start by reading your letters" not in text and "write the letter, end" not in text
 
 
 # ── register ─────────────────────────────────────────────────────────────
@@ -132,12 +145,19 @@ def test_register_list_flags_the_duplicate_across_scopes(own_settings, capsys):
 
 
 # ── bookmark ─────────────────────────────────────────────────────────────
-def test_bookmark_prints_from_margin_never_fails_a_session_and_installs_once(tmp_path, own_settings, margin, capsys):
+def test_bookmark_prints_from_margin_never_fails_a_session_and_installs_once(tmp_path, own_settings, margin, monkeypatch, capsys):
     port = margin.server_address[1]
     conn = write_connection(str(tmp_path / "nuc" / "margin.yaml"), Connection(host="127.0.0.1", port=port, bearer_token="margin-secret"))
     assert cli.main(["claude", "bookmark", "print", conn]) == 0
     out = capsys.readouterr().out
     assert "picking up where you left off" in out and "climb on" in out and "1 unread letter" in out
+    assert "Leave them closed" not in out, "a session a person opened reads its mail"
+    # a woken session gets the same bookmark and is told the letters are not for it
+    monkeypatch.setenv("SEREN_KBH_WAKE", "1")
+    assert cli.main(["claude", "bookmark", "print", conn]) == 0
+    out = capsys.readouterr().out
+    assert "climb on" in out and "1 unread letter" in out and "Leave them closed" in out
+    monkeypatch.delenv("SEREN_KBH_WAKE")
     # wrong token: one line, exit 0, the session goes on
     bad = write_connection(str(tmp_path / "nuc" / "bad.yaml"), Connection(host="127.0.0.1", port=port, bearer_token="nope"))
     assert cli.main(["claude", "bookmark", "print", bad]) == 0

@@ -55,7 +55,7 @@ def fake_claude(tmp_path):
 import json, os, sys
 argv = sys.argv[1:]
 calls = json.load(open({str(out)!r})) if os.path.exists({str(out)!r}) else []
-entry = {{"argv": argv, "cwd": os.getcwd()}}
+entry = {{"argv": argv, "cwd": os.getcwd(), "wake_env": os.environ.get("SEREN_KBH_WAKE")}}
 if argv[:1] == ["-p"]:
     entry["stdin"] = sys.stdin.read()
     print("woken ok")

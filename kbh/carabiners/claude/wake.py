@@ -40,6 +40,9 @@ from ...harness import self_command
 from .common import claude_json_path, quote_command, servers_for
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# Set for the woken session, so the bookmark hook it runs at SessionStart
+# knows nobody opened this one (codex's carabiner uses the same name).
+WAKE_ENV = "SEREN_KBH_WAKE"
 
 
 def find_claude() -> Optional[str]:
@@ -184,9 +187,10 @@ def run(argv: List[str]) -> int:
                   f"~/.local/bin, ~/.claude/local or npm's folder. Set SEREN_CLAUDE_BIN to where it is. "
                   f"The model cannot be woken here.", file=sys.stderr)
             return 2
+        env = dict(os.environ, **{WAKE_ENV: "1"})
         try:
             done = subprocess.run([claude, "-p", "--allowedTools", allowed], input=text, text=True,
-                                  encoding="utf-8", cwd=cwd)
+                                  encoding="utf-8", cwd=cwd, env=env)
         except OSError as exc:
             print(f"`claude` at {claude} could not be started ({exc}) - the model cannot be woken here",
                   file=sys.stderr)

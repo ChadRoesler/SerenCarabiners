@@ -5,7 +5,11 @@ Lifted from Starwright's seren-margin-bookmark.py and the --claude-bookmark
 half of seren-claude-hook.py. A Claude Code SessionStart hook runs
 `kbh claude bookmark print <connection file>`; whatever it prints lands in the
 session - and SessionStart fires for a headless `claude -p` too, so a woken
-session gets the bookmark as well. Letters go both ways.
+session gets the bookmark as well. Letters do not go both ways any more
+(18 Oct 2026): a wake is housekeeping, and opening a letter marks it read,
+so a 3 a.m. review was taking the awake session's mail. A woken session
+(SEREN_KBH_WAKE, set by wake.py) gets the bookmark with a line telling it
+to leave the letters closed.
 
 It never blocks a session: Margin down, a bad file, a 401 - one short line,
 exit 0. The bearer is read from the connection file by the family's rules,
@@ -35,6 +39,9 @@ EVENT = "SessionStart"
 # was quoted; and the Starwright-era hook it replaces.
 MARKERS = ('bookmark" "print', "bookmark print")
 OLD_MARKER = "seren-margin-bookmark.py"
+WAKE_ENV = "SEREN_KBH_WAKE"
+WOKEN = ("You were woken, not opened by a person: any letters counted above are for the awake you. "
+         "Leave them closed - opening one marks it read, and the awake you would never see it arrive.")
 
 
 def marker_in(command: str) -> bool:
@@ -101,6 +108,8 @@ def run(argv: List[str]) -> int:
             print("(Margin's bookmark is unavailable: no connection file given and no `bookmark:` in the config)")
             return 0                                     # a hook must never fail the session
         print(fetch(connection))
+        if os.environ.get(WAKE_ENV):
+            print("\n" + WOKEN)
         return 0
     try:
         if argv[0] == "install":
