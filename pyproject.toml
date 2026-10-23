@@ -19,12 +19,13 @@ dev = ["pytest>=7"]
 [project.scripts]
 kbh = "kbh.cli:main"
 
-[tool.setuptools]
-packages = ["kbh", "kbh.carabiners", "kbh.carabiners.claude", "kbh.carabiners._template"]
+# Found, not listed: a hand-kept list left codex out of the wheel. Every
+# carabiner ships its framing.md and config.yaml beside its code.
+[tool.setuptools.packages.find]
+include = ["kbh*"]
 
 [tool.setuptools.package-data]
-"kbh.carabiners.claude" = ["framing.md", "config.yaml"]
-"kbh.carabiners._template" = ["framing.md", "config.yaml"]
+"kbh.carabiners" = ["*/framing.md", "*/config.yaml"]
 
 [tool.setuptools.dynamic]
 version = { attr = "kbh.__version__" }

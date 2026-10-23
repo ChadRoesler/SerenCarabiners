@@ -158,6 +158,10 @@ def run(argv: List[str]) -> int:
         return 2
     cwd = os.path.abspath(os.path.expanduser(project))
     allowed = ",".join(f"mcp__{s}" for s in servers)
+    # The box's session.model (the Rack sets it): a hippocampus on Haiku on one
+    # box, Opus on another. Blank leaves it to Claude Code.
+    model = str((cfg.session.get("model") if cfg else "") or "")
+    model_args = ["--model", model] if model else []
 
     # The command a hook or an Observatory holds. With a config, it names the
     # config and nothing else: project, framing and python all come from there
@@ -180,7 +184,7 @@ def run(argv: List[str]) -> int:
         claude = find_claude()
         if "--dry" in argv:
             print(json.dumps({"claude": claude, "cwd": cwd, "allowed": allowed, "servers": servers,
-                              "stdin": text}, indent=2))
+                              "model": model or None, "stdin": text}, indent=2))
             return 0 if claude else 2
         if claude is None:
             print(f"no `claude` for this account: not on PATH ({os.environ.get('PATH', '')[:200]}), not in "
@@ -189,8 +193,14 @@ def run(argv: List[str]) -> int:
             return 2
         env = dict(os.environ, **{WAKE_ENV: "1"})
         try:
-            done = subprocess.run([claude, "-p", "--allowedTools", allowed], input=text, text=True,
-                                  encoding="utf-8", cwd=cwd, env=env)
+            # wake.timeout_seconds (the Rack's "Give up on a wake after"): a
+            # stuck session is stopped, not left holding the box.
+            timeout = cfg.wake_timeout() if cfg else None
+            done = subprocess.run([claude, "-p", "--allowedTools", allowed, *model_args], input=text, text=True,
+                                  encoding="utf-8", cwd=cwd, env=env, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            print(f"the wake ran past {timeout:g}s (wake.timeout_seconds) and was stopped", file=sys.stderr)
+            return 1
         except OSError as exc:
             print(f"`claude` at {claude} could not be started ({exc}) - the model cannot be woken here",
                   file=sys.stderr)

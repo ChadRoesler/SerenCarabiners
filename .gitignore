@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# written into a .kbh by build.py, never kept in the tree
+kbh/_build.py

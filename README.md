@@ -106,7 +106,18 @@ bookmark: margin.yaml                        # Margin's connection file; blank =
 framing: framing.md                          # the text a woken session is given, beside this yaml
 wake:
   timeout_seconds: 900
+session:                                     # optional: what a session of this harness may do
+  permission_mode: acceptEdits
+  allowed_tools:
+    - mcp__wren-workbench__*
 ```
+
+**The `session:` block** is the box's defaults for anything in Seren that starts
+or drives a session of this harness, because whatever is specific to a harness
+lives in its carabiner rather than in each service's config. Symposium's claude
+voice reads it as the layer under its own: the CLI's settings, then this, then
+every chat's, then a project's, then a chat's. `allowed_tools` is a list, or one
+comma-separated line for the stdlib reader. Leave it out and nothing changes.
 
 `install` writes it from the zip's `config.yaml` template (`init` is the quiet form that writes
 only the yaml and the framing), and copies the default `framing.md` beside it for you to edit. **The
@@ -201,6 +212,15 @@ python build.py claude --with-custom ./mine --as claude-mine   # your custom/ la
 KBH_DIST=/srv/kbh python build.py    # write somewhere else
 ```
 
+Every build says what it is: `python claude.kbh --version` answers
+`kbh 5.1.3+6d5f1eb` (the commit it was built from), or
+`kbh 5.1.3+6d5f1eb.dirty.1a2b3c4d` when the tree was not just that commit
+(uncommitted changes under `kbh/`, `--from`, `--with-custom`). The same source
+makes the same file, byte for byte, whatever python or OS built it (entries
+stored in order with one timestamp, LF endings; `SOURCE_DATE_EPOCH` sets the
+timestamp), so a sha256 names the code. Rebuild before you hand a file out:
+`dist/` is whatever was built last.
+
 **Release**: bump `__version__` in `kbh/__init__.py`, commit, tag it `v<that>`,
 push the tag. `.github/workflows/release.yml` re-runs the tests on Linux and
 Windows, refuses a tag that does not match the version, builds every `.kbh`
@@ -224,9 +244,28 @@ bash seren-carabiner-setup.sh --ref v0.1.0 [--repo you/SerenCarabiners] ...   # 
 bash seren-carabiner-setup.sh ...                                    # else: build from a checkout beside it
 ```
 
-A box with a `.kbh` and python needs nothing from this repository. Updating is
-replacing the file: the yaml, framing and `custom/` beside it are never
-overwritten by an install, so a new `.kbh` picks up where the old one left off.
+A box with a `.kbh` and python needs nothing from this repository.
+
+**Upgrade**: the installed file does it, so the new one is checked before any
+of it runs.
+
+```bash
+python ~/.seren/kbh/claude.kbh upgrade --from ./claude.kbh --sha256 <from claude.kbh.sha256>
+```
+
+It refuses a hash that does not match, a file that does not carry every
+carabiner the installed one does, and an older version (unless `--downgrade`).
+Then it belays with the old file, keeps it as `claude.kbh.bak-<its version>`,
+swaps the new one in, and belays again: anything that held before and lets go
+now puts the old one back. A brain box that is down lets go of the same checks
+both times, which is not the new build's fault and does not roll it back.
+`--json` is the answer an Observatory reads. The yaml, framing and `custom/`
+beside the file are never touched.
+
+A box on 5.1.2 or older has no `upgrade` verb. The first time, the new file
+does it: `python ./claude.kbh upgrade --into ~/.seren/kbh/claude.kbh --from
+./claude.kbh`. Then the new file is checking itself, so `--sha256` only catches
+a bad download; check the hash yourself before you run it.
 
 ## Development
 

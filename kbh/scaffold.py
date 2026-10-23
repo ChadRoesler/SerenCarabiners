@@ -10,16 +10,22 @@ and the template, and the world goes wild.
 from __future__ import annotations
 
 import os
+import pkgutil
 import re
-import shutil
 import sys
 from typing import List, Optional
 
 _NAME = re.compile(r"^[a-z][a-z0-9_]{1,31}$")
 
 
-def template_dir() -> str:
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "carabiners", "_template")
+# The template's files, named rather than listed: inside a .kbh the template
+# is in a zip, where there is no folder to list, only pkgutil to read through.
+TEMPLATE = "kbh.carabiners._template"
+TEMPLATE_FILES = ("__init__.py", "config.yaml", "framing.md")
+
+
+def template_files() -> dict:
+    return {fname: pkgutil.get_data(TEMPLATE, fname).decode("utf-8") for fname in TEMPLATE_FILES}
 
 
 def new(name: str, into: Optional[str] = None, display: Optional[str] = None) -> str:
@@ -31,13 +37,9 @@ def new(name: str, into: Optional[str] = None, display: Optional[str] = None) ->
     dest = os.path.join(into, name)
     if os.path.exists(dest):
         raise FileExistsError(f"{dest} already exists")
-    src = template_dir()
+    files = template_files()                          # read it all before making anything
     os.makedirs(dest)
-    for fname in os.listdir(src):
-        if fname == "__pycache__":
-            continue
-        with open(os.path.join(src, fname), encoding="utf-8") as f:
-            text = f.read()
+    for fname, text in files.items():
         text = text.replace("__NAME__", name).replace("__HARNESS__", display)
         text = text.replace("class TemplateCarabiner", f"class {_class_name(name)}")
         text = text.replace("CARABINER = TemplateCarabiner", f"CARABINER = {_class_name(name)}")

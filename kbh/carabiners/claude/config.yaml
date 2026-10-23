@@ -38,3 +38,13 @@ framing: framing.md
 
 wake:
   timeout_seconds: 900
+
+# What a session of this harness may do, for anything in Seren that starts or
+# drives one: Symposium's claude voice reads it as this box's defaults, under
+# every chat's, a project's and a chat's own. Leave it out and the CLI's own
+# settings decide. One rule per item (or comma separated on one line):
+#   session:
+#     permission_mode: acceptEdits     # manual, acceptEdits, auto, plan, dontAsk, or bypassPermissions
+#     allowed_tools: "mcp__wren-workbench__*, Read"
+#     model: claude-haiku-5-5          # what a wake runs on; blank = Claude Code's own default
+# `kbh claude config` shows and changes these (and Lodestar's Rack does it for you).

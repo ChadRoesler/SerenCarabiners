@@ -104,6 +104,19 @@ class Carabiner:
         from .install import install
         return install(self, argv)
 
+    # ── config: the settings this carabiner says it has (kbh.schema) ──
+    def settings_fields(self, cfg=None, discover: bool = False) -> list:
+        """Every setting a person may change on this box, as kbh.schema
+        Fields; `cfg` (the box's HarnessConfig) when a field's choices depend
+        on it, `discover` when a form is being drawn and choices may be
+        looked up somewhere slow. Subclasses add their harness's own."""
+        from .schema import base_fields
+        return base_fields()
+
+    def config(self, argv: List[str]) -> int:
+        from .configure import run
+        return run(self, argv)
+
     # ── init: the yaml that says how this carabiner rolls here ──
 
     def init(self, argv: List[str]) -> int:
@@ -152,5 +165,6 @@ class Carabiner:
         return 3
 
     def manifest(self) -> dict:
+        from . import full_version
         return {"name": self.name, "harness": self.display, "verbs": dict(self.supports),
-                "description": self.description}
+                "description": self.description, "version": full_version()}

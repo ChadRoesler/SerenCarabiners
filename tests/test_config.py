@@ -18,7 +18,8 @@ def test_the_by_hand_yaml_reader_handles_two_levels_quotes_and_comments():
             'servers:\n  wren-workbench: workbench.yaml\n  other: "o.yaml"\nbookmark: margin.yaml\nframing: framing.md\n'
             'wake:\n  timeout_seconds: 900\n  dry: true\n')
     d = config._two_levels_by_hand(text)
-    assert d["project"] == "D:\\\\work" and d["servers"] == {"wren-workbench": "workbench.yaml", "other": "o.yaml"}
+    # a double-quoted value has its escapes undone, as PyYAML does it
+    assert d["project"] == "D:\\work" and d["servers"] == {"wren-workbench": "workbench.yaml", "other": "o.yaml"}
     assert d["wake"] == {"timeout_seconds": 900, "dry": True} and d["bookmark"] == "margin.yaml"
 
 
@@ -104,3 +105,19 @@ def test_the_config_is_found_beside_the_kbh_or_in_home(tmp_path, monkeypatch):
     monkeypatch.setenv("KBH_CONFIG", str(tmp_path / "x.yaml"))
     assert config.find("claude") == str(tmp_path / "x.yaml")
     assert config.find("claude", str(tmp_path / "y.yaml")) == str(tmp_path / "y.yaml")
+
+
+
+def test_the_session_block_is_read_as_a_list_or_a_comma_line(tmp_path):
+    """The carabiner holds what a session of its harness may do (22 Oct 2026);
+    Symposium reads it as the box's defaults."""
+    y = tmp_path / "claude.yaml"
+    y.write_text("carabiner: claude\nsession:\n  permission_mode: acceptEdits\n"
+                 "  allowed_tools:\n    - mcp__wren-workbench__*\n    - Read\n", encoding="utf-8")
+    cfg = config.load(str(y))
+    assert cfg.session_mode() == "acceptEdits" and cfg.session_allowed_tools() == ["mcp__wren-workbench__*", "Read"]
+    assert "session" not in cfg.extra, "a known key, not a stray one"
+    d = config._two_levels_by_hand("session:\n  permission_mode: plan\n  allowed_tools: Read, Bash(git:*)\n")
+    by_hand = config.HarnessConfig(session=d["session"])
+    assert by_hand.session_mode() == "plan" and by_hand.session_allowed_tools() == ["Read", "Bash(git:*)"]
+    assert config.HarnessConfig().session_allowed_tools() == [] and config.HarnessConfig().session_mode() == ""

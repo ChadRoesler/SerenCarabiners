@@ -51,6 +51,12 @@ class ClaudeCarabiner(Carabiner):
     def default_framing(self) -> str:
         return _wake.default_framing()
 
+    def settings_fields(self, cfg=None, discover: bool = False) -> list:
+        from . import fields as _fields
+        servers = list(cfg.servers) if cfg is not None else []
+        discover = discover and os.environ.get("KBH_NO_DISCOVER") != "1"
+        return super().settings_fields(cfg) + _fields.fields(servers, discover=discover)
+
     def belay_checks(self, argv: List[str]) -> List[Callable[[], Check]]:
         from ...config import load_for
 

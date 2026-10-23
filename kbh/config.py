@@ -16,6 +16,15 @@ every verb:
     framing: framing.md                        # the text a woken session is given; beside this yaml
     wake:
       timeout_seconds: 900
+    session:                                   # what a session of this harness may do (optional)
+      permission_mode: acceptEdits
+      allowed_tools: mcp__wren-workbench__*, Read
+
+THE SESSION BLOCK is the box's defaults for anything in Seren that starts or
+drives a session of this harness (22 Oct 2026: whatever is specific to a
+harness lives in its carabiner, not in each service's config). Symposium's
+claude voice reads it under every chat's, a project's and a chat's own
+settings. allowed_tools is a list, or comma separated for the stdlib reader.
 
 FRAMING IS NOT IN THE CARABINER. It is prose a person (or the model) edits,
 so it is a file the yaml points at; the package carries a default only as
@@ -49,8 +58,16 @@ def read_yaml(path: str) -> Dict[str, Any]:
 
 def _scalar(value: str) -> Any:
     value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-        return value[1:-1]
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        # A double-quoted value has its escapes undone, as PyYAML does: kbh's
+        # own writer (kbh.yamledit) quotes with json.dumps, so a path's `\\`
+        # and an accent's `é` read back as they were written.
+        try:
+            return json.loads(value)
+        except ValueError:
+            return value[1:-1]
+    if len(value) >= 2 and value[0] == value[-1] == "'":
+        return value[1:-1].replace("''", "'")
     low = value.lower()
     if low in ("true", "yes", "on"):
         return True
@@ -82,6 +99,14 @@ def _two_levels_by_hand(text: str) -> Dict[str, Any]:
         if " #" in line and not (line.count('"') % 2 or line.count("'") % 2):
             line = line.split(" #", 1)[0].rstrip()
         indent = len(line) - len(line.lstrip(" \t"))
+        # A block list under a sub key (`  allowed_tools:` / `    - Read`): the
+        # sub opened as an empty dict becomes the list.
+        item = line.strip()
+        if item.startswith("- ") and block is not None and sub is not None and isinstance(out.get(block), dict):
+            cur = out[block].get(sub)
+            if cur == {} or isinstance(cur, list):
+                out[block][sub] = (cur if isinstance(cur, list) else []) + [_scalar(item[2:])]
+                continue
         key, sep, value = line.strip().partition(":")
         if not sep:
             continue
@@ -119,6 +144,7 @@ class HarnessConfig:
     bookmark: Any = ""                                          # Margin: a connection file, an inline route, or ""
     framing: str = ""                                           # path to the framing text, or "" = the package default
     wake: Dict[str, Any] = field(default_factory=dict)
+    session: Dict[str, Any] = field(default_factory=dict)       # what a session may do: permission_mode, allowed_tools
     path: str = ""                                              # the yaml this came from
     extra: Dict[str, Any] = field(default_factory=dict)         # keys this binder does not know; a carabiner may
 
@@ -162,6 +188,15 @@ class HarnessConfig:
     def framing_path(self) -> str:
         return self.resolve(self.framing) if self.framing else ""
 
+    def session_mode(self) -> str:
+        return str(self.session.get("permission_mode") or "")
+
+    def session_allowed_tools(self) -> list:
+        """The session block's allowed tools: a list, or one comma separated
+        string (what the stdlib reader makes of a line)."""
+        from .schema import split_tools
+        return split_tools(self.session.get("allowed_tools"))
+
     def wake_timeout(self) -> float:
         try:
             return float(self.wake.get("timeout_seconds", 900))
@@ -172,7 +207,7 @@ class HarnessConfig:
 def load(path: str) -> HarnessConfig:
     path = os.path.abspath(os.path.expanduser(path))
     data = read_yaml(path)                                       # OSError if missing, on purpose
-    known = {"carabiner", "project", "python", "connections", "servers", "bookmark", "framing", "wake"}
+    known = {"carabiner", "project", "python", "connections", "servers", "bookmark", "framing", "wake", "session"}
     servers = data.get("servers") if isinstance(data.get("servers"), dict) else {}
     bookmark = data.get("bookmark")
     return HarnessConfig(carabiner=str(data.get("carabiner") or ""), project=str(data.get("project") or ""),
@@ -181,6 +216,7 @@ def load(path: str) -> HarnessConfig:
                          bookmark=dict(bookmark) if isinstance(bookmark, dict) else str(bookmark or ""),
                          framing=str(data.get("framing") or ""),
                          wake=dict(data.get("wake") or {}) if isinstance(data.get("wake"), dict) else {},
+                         session=dict(data.get("session") or {}) if isinstance(data.get("session"), dict) else {},
                          path=path, extra={k: v for k, v in data.items() if k not in known})
 
 

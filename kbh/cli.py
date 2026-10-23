@@ -6,11 +6,16 @@ kbh.cli - the command line.
     kbh <carabiner> headers <connection>      the headersHelper (what a harness runs on connect)
     kbh <carabiner> belay [--json] [args]     on belay? belay on. climbing. climb on.
     kbh <carabiner> manifest                  what it supports, as JSON
+    kbh <carabiner> config [show|get|set|unset|apply]
+                                              the settings it says it has, read and changed
+                                              in its yaml (Lodestar's Rack runs `apply`)
     kbh <carabiner> install [--into DIR] ...  the whole clip: push config.yaml -> <carabiner>.yaml, framing.md
                                               and any shipped custom/ beside the .kbh; run custom hooks
     kbh <carabiner> init --into DIR ...       only the yaml + framing (install's quiet form)
     kbh install --into DIR                    a tricks pack: a .kbh with only custom/, layered on
     kbh new NAME [--into DIR]                 a carabiner to start from (the template)
+    kbh upgrade --from NEW.kbh [--sha256 HEX] this .kbh replaced by NEW, checked first and put back
+                                              if belay lets go of what held before
     kbh --path DIR ...                        also look for carabiners in DIR (one folder each);
                                               KBH_CARABINERS=DIR[:DIR] does the same
 
@@ -28,10 +33,10 @@ import pkgutil
 import sys
 from typing import Dict, List, Optional, Type
 
-from . import __version__
+from . import full_version
 from .harness import Carabiner
 
-VERB_NAMES = ("register", "wake", "bookmark", "due", "headers", "belay", "init", "install")
+VERB_NAMES = ("register", "wake", "bookmark", "due", "headers", "belay", "init", "install", "config")
 
 
 def _external_dirs(extra: Optional[List[str]] = None) -> List[str]:
@@ -99,11 +104,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(__doc__.strip(), file=sys.stderr)
         return 64
     if argv[0] in ("-V", "--version"):
-        print(f"kbh {__version__}")
+        print(f"kbh {full_version()}")
         return 0
     if argv[0] == "new":
         from .scaffold import run as new
         return new(argv[1:])
+    if argv[0] == "upgrade":
+        from .upgrade import run as upgrade
+        return upgrade(argv[1:])
     if argv[0] == "install":                                           # a tricks pack: custom/ only
         from .install import install_tricks
         return install_tricks(argv[1:])
@@ -122,7 +130,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 64
     c = cls()
     if len(argv) < 2:
-        print(f"usage: kbh {name} <register|wake|bookmark|due|headers|belay|init|manifest> ...", file=sys.stderr)
+        print(f"usage: kbh {name} <register|wake|bookmark|due|headers|belay|init|manifest|config> ...", file=sys.stderr)
         return 64
     verb, rest = argv[1], argv[2:]
     # The box's custom/ (beside the config, which is beside the .kbh): extra

@@ -29,3 +29,20 @@ seren_meninges and PyYAML are used when they are there and not required.
 from __future__ import annotations
 
 __version__ = "5.1.3"
+
+
+def build_id() -> str:
+    """What build.py stamped into this .kbh: the commit ('6d5f1eb'), or the
+    commit and a hash of what went in when the tree was not just that commit
+    ('6d5f1eb.dirty.1a2b3c4d'). '' when running from a checkout."""
+    try:
+        from ._build import BUILD
+    except ImportError:
+        return ""
+    return str(BUILD)
+
+
+def full_version() -> str:
+    """5.1.3+6d5f1eb: the version, and which build of it."""
+    b = build_id()
+    return f"{__version__}+{b}" if b else __version__
