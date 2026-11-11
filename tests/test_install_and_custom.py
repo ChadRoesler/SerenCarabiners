@@ -109,25 +109,25 @@ def test_a_flavour_is_one_file_and_install_pushes_its_custom_beside_the_zip(tmp_
     mine = tmp_path / "mine"
     _custom_tree(mine, "ship")
     env = dict(os.environ, KBH_DIST=str(tmp_path / "dist"))
-    kbh = _build(["claude", "--with-custom", str(mine), "--as", "chads-claude"], env)
-    assert kbh.endswith("chads-claude.kbh")
+    kbh = _build(["claude", "--with-custom", str(mine), "--as", "alices-claude"], env)
+    assert kbh.endswith("alices-claude.kbh")
     clip = tmp_path / "clip"; clip.mkdir()
     # install from the zip itself, --into its own folder being the default: put the zip there first
     import shutil
-    shutil.copy(kbh, clip / "chads-claude.kbh")
-    done = subprocess.run([sys.executable, str(clip / "chads-claude.kbh"), "claude", "install", "--project", str(tmp_path),
+    shutil.copy(kbh, clip / "alices-claude.kbh")
+    done = subprocess.run([sys.executable, str(clip / "alices-claude.kbh"), "claude", "install", "--project", str(tmp_path),
                            "--python", sys.executable], capture_output=True, text=True, cwd=str(tmp_path),
                           env=dict(os.environ, SEREN_CLAUDE_JSON=str(tmp_path / "cj.json")))
     assert done.returncode == 0, done.stderr + done.stdout
     assert (clip / "custom" / "python" / "hello.py").exists() and (clip / "custom" / "extras" / "bedtime.md").exists()
     assert (clip / "claude.yaml").exists() and (clip / "ship-pre").exists() and (clip / "ship-post").exists()
     # the custom verb now works from the zip, config found beside it with no flags
-    run = subprocess.run([sys.executable, str(clip / "chads-claude.kbh"), "claude", "hello"], capture_output=True, text=True,
+    run = subprocess.run([sys.executable, str(clip / "alices-claude.kbh"), "claude", "hello"], capture_output=True, text=True,
                          cwd=str(tmp_path))
     assert "hello from custom" in run.stdout, run.stderr
     # a second install with a custom/ already there: the shipped one lands beside, nothing overwritten
     (clip / "custom" / "python" / "hello.py").write_text("VERBS = {}\n", encoding="utf-8")
-    done = subprocess.run([sys.executable, str(clip / "chads-claude.kbh"), "claude", "install"], capture_output=True, text=True,
+    done = subprocess.run([sys.executable, str(clip / "alices-claude.kbh"), "claude", "install"], capture_output=True, text=True,
                           cwd=str(tmp_path))
     assert done.returncode == 0 and "custom.shipped" in done.stdout
     assert (clip / "custom" / "python" / "hello.py").read_text() == "VERBS = {}\n"

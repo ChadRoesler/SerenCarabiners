@@ -82,9 +82,9 @@ def test_a_start_tells_the_kitchen_and_the_session_is_told_its_hand(tmp_path, ki
     assert body["box"] and "hand" not in body, "the hand is the kitchen's to name unless the yaml pins one"
     assert "ada·carabiner" in out and 'hand="carabiner"' in out
 
-    kitchen.say = "You are ada·carabiner. Mind the cheese."
+    kitchen.say = "You are ada·carabiner. Welcome back."
     _, out = _hook(monkeypatch, capsys, "start", y, session_id="abc-123", cwd="x", source="resume")
-    assert out.strip() == "You are ada·carabiner. Mind the cheese.", "the kitchen's own words win"
+    assert out.strip() == "You are ada·carabiner. Welcome back.", "the kitchen's own words win"
 
 
 def test_an_end_passes_the_reason_through_and_says_nothing(tmp_path, kitchen, monkeypatch, capsys):

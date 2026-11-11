@@ -27,7 +27,7 @@ def clipped(tmp_path, capsys):
     into = tmp_path / "kbh"
     proj = tmp_path / "proj"; proj.mkdir()
     assert cli.main(["claude", "init", "--into", str(into), "--project", str(proj), "--python", "/v/py",
-                     "--server", "adaworkbench=workbench.yaml"]) == 0
+                     "--server", "ada-workbench=workbench.yaml"]) == 0
     y = into / "claude.yaml"
     y.write_text(y.read_text(encoding="utf-8").replace(
         'bookmark: ""', 'bookmark:\n  url: http://nuc:7251\n  bearer_token: SECRET-margin-token'), encoding="utf-8")

@@ -12,7 +12,7 @@ kbh.custom - the layer anyone adds without touching the base.
 TWO PLACES IT COMES FROM. Beside the installed .kbh: the box's own tweaks,
 which a newer .kbh dropped in never touches. Inside a .kbh: someone's flavour,
 bundled to hand over (`build.py claude --with-custom ./mine` ->
-chads-claude.kbh), pushed out beside the zip by `install`; when the box
+alices-claude.kbh), pushed out beside the zip by `install`; when the box
 already has a custom/, the box's wins and the shipped one lands as
 custom.shipped/ to merge by hand. A .kbh with no carabiner and only a custom/
 is a tricks pack: `python tricks.kbh install --into DIR` layers it onto

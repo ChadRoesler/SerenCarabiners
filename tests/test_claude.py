@@ -109,7 +109,7 @@ def test_register_writes_a_user_scope_entry_with_a_headers_helper_and_no_token(t
     assert "ada-workbench" not in fake_claude.registry()
 
 
-def test_register_bundle_from_a_folder_of_the_brain_boxs_yamls_chads_trick(tmp_path, own_settings, fake_claude, monkeypatch):
+def test_register_bundle_from_a_folder_of_the_brain_boxs_yamls(tmp_path, own_settings, fake_claude, monkeypatch):
     monkeypatch.setenv("SEREN_CLAUDE_BIN", fake_claude.path)
     src = tmp_path / "from-nuc"; src.mkdir()
     for name, port in (("seren-workbench", 7255), ("seren-margin", 7251), ("seren-memory", 7250)):

@@ -108,8 +108,8 @@ python claude.kbh claude install --project ~/work --python /venv/bin/python \
 python claude.kbh claude belay                                       # finds claude.yaml beside the zip
 ```
 
-**Sharing a flavour.** `python build.py claude --with-custom ./mine --as chads-claude`
-makes `chads-claude.kbh`: the base plus your `custom/`, one file to hand over.
+**Sharing a flavour.** `python build.py claude --with-custom ./mine --as alices-claude`
+makes `alices-claude.kbh`: the base plus your `custom/`, one file to hand over.
 On install the shipped `custom/` lands beside the zip; if the box already has
 one, the box's wins and the shipped one lands as `custom.shipped/` to merge by
 hand. **A tricks pack** is a `.kbh` with only `custom/`
@@ -214,6 +214,37 @@ python codex.kbh codex register apply
 python codex.kbh codex bookmark install          # then trust it once: codex, /hooks
 python codex.kbh codex belay --dry-wake
 ```
+
+## Copilot: the third harness
+
+`copilot.kbh` clips Seren onto GitHub Copilot. Written from the docs of
+4 Nov 2026; the tests use a stand-in, and it has not yet been run against a
+real Copilot.
+
+| Verb | In Copilot |
+|---|---|
+| `register` | an entry under `mcpServers` in `$COPILOT_HOME/mcp-config.json` (`~/.copilot/` by default). The Copilot CLI and Copilot in VS Code both read that file, so one registration serves the terminal and the editor. Everything else in the file is kept, the old one stays as `.seren-bak`, and a file that is not JSON is not touched. |
+| `wake` | `copilot -p <message> --allow-tool <server> ...` in the project folder: every tool of the yaml's servers allowed, nothing else. The CLI only: Copilot in an editor has no headless start, and a box with no `copilot` binary says so and is still a whole install. A Windows `copilot.cmd` shim is refused, because cmd.exe would cut the message at its first line; install with winget, or name the `.exe` with `SEREN_COPILOT_BIN`. |
+| `bookmark`, `presence`, `due` | unsupported for now. The CLI has `sessionStart` and `sessionEnd` hooks, which is where the first two would go. |
+
+**The token is the difference.** Copilot has no headers helper, so a header is
+a value in its file. A route kept as `bearer_token_env: NAME` is written as
+`Bearer ${NAME}`: nothing secret in Copilot's file, and the variable has to be
+set where Copilot runs. A route with an inline or keyring token has it copied
+into `mcp-config.json` (made 0600): `register apply` again after a rotation.
+Belay lets go when that copy is stale, when the entry points somewhere the yaml
+no longer says, or when the variable is not set.
+
+```bash
+python copilot.kbh copilot install --project ~/work
+SEREN_MEMORY_TOKEN=... python copilot.kbh copilot route add memory http://127.0.0.1:7420 --token-env SEREN_MEMORY_TOKEN
+python copilot.kbh copilot belay
+```
+
+Visual Studio (the IDE) reads a different file, `%USERPROFILE%\.mcp.json`, and
+is not written yet. An organization can also switch MCP off for Copilot in the
+editors; nothing here can see that policy, so check that Copilot lists the
+server after registering.
 
 ## The memory-only shape: no Workbench, no Margin, no Lodestar
 
