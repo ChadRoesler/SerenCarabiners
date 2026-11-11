@@ -79,19 +79,19 @@ def test_register_writes_a_table_with_a_headers_helper_keeps_the_rest_and_replac
     _write_user_config()
     conn = write_connection(str(tmp_path / "node-a" / "workbench.yaml"),
                             Connection(host="node-a", port=7255, bearer_token="s3cret"))
-    assert cli.main(["codex", "register", "add", "wren-workbench", "--connection", conn]) == 0
-    assert cli.main(["codex", "register", "add", "wren-workbench", "--connection", conn]) == 0, "a re-register is safe"
+    assert cli.main(["codex", "register", "add", "ada-workbench", "--connection", conn]) == 0
+    assert cli.main(["codex", "register", "add", "ada-workbench", "--connection", conn]) == 0, "a re-register is safe"
     text = open(_config_toml(), encoding="utf-8").read()
     assert "s3cret" not in text, "never a token in Codex's config"
-    assert text.count("[mcp_servers.wren-workbench]") == 1, "replaced, not duplicated"
+    assert text.count("[mcp_servers.ada-workbench]") == 1, "replaced, not duplicated"
     assert text.count("# written by kbh codex register") == 1, "our note goes with our table"
     for kept in ('model = "gpt-5.3-codex"', "[mcp_servers.someone-elses]", "[mcp_servers.someone-elses.env]",
                  'A = "1"', "[profiles.fast]"):
         assert kept in text, f"someone else's line went: {kept}"
     servers = common.parse_servers(text)
-    assert servers["wren-workbench"]["url"] == "http://node-a:7255/mcp"
-    assert servers["wren-workbench"]["startup_timeout_sec"] == 30
-    helper = servers["wren-workbench"]["http_headers_helper"]
+    assert servers["ada-workbench"]["url"] == "http://node-a:7255/mcp"
+    assert servers["ada-workbench"]["startup_timeout_sec"] == 30
+    helper = servers["ada-workbench"]["http_headers_helper"]
     assert "codex" in helper and "headers" in helper and "workbench.yaml" in helper
     assert os.path.exists(_config_toml() + ".seren-bak")
 
@@ -100,22 +100,22 @@ def test_register_writes_a_table_with_a_headers_helper_keeps_the_rest_and_replac
     assert done.returncode == 0, done.stderr
     assert json.loads(done.stdout) == {"Authorization": "Bearer s3cret"}
 
-    assert cli.main(["codex", "register", "remove", "wren-workbench"]) == 0
+    assert cli.main(["codex", "register", "remove", "ada-workbench"]) == 0
     text = open(_config_toml(), encoding="utf-8").read()
-    assert "wren-workbench" not in text and "kbh codex" not in text
+    assert "ada-workbench" not in text and "kbh codex" not in text
     assert "[mcp_servers.someone-elses.env]" in text and "[profiles.fast]" in text
 
 
 def test_register_from_the_yaml_with_an_inline_route_points_the_helper_at_the_yaml(tmp_path, monkeypatch):
-    monkeypatch.setenv("KBH_TOKEN_WREN_WORKBENCH", "r0ute")
+    monkeypatch.setenv("KBH_TOKEN_ADA_WORKBENCH", "r0ute")
     into = tmp_path / "clip"
     assert cli.main(["codex", "install", "--into", str(into), "--project", str(tmp_path), "--python", sys.executable,
-                     "--server", "wren-workbench=http://192.0.2.10:7255"]) == 0
+                     "--server", "ada-workbench=http://192.0.2.10:7255"]) == 0
     yaml = str(into / "codex.yaml")
     assert cli.main(["codex", "register", "apply", "--config", yaml]) == 0
-    entry = common.servers_in(_config_toml())["wren-workbench"]
+    entry = common.servers_in(_config_toml())["ada-workbench"]
     assert entry["url"] == "http://192.0.2.10:7255/mcp"
-    assert "codex.yaml#wren-workbench" in entry["http_headers_helper"]
+    assert "codex.yaml#ada-workbench" in entry["http_headers_helper"]
     assert "r0ute" not in open(_config_toml(), encoding="utf-8").read()
     done = run_like_codex(entry["http_headers_helper"])
     assert json.loads(done.stdout) == {"Authorization": "Bearer r0ute"}, done.stderr
@@ -125,7 +125,7 @@ def test_a_bearer_token_env_route_cannot_reach_the_helper_and_belay_says_why(tmp
     monkeypatch.setenv("WB_TOKEN", "from-env")
     conn = tmp_path / "workbench.yaml"
     conn.write_text('server:\n  host: "node-a"\n  port: 7255\n  bearer_token_env: "WB_TOKEN"\n', encoding="utf-8")
-    assert cli.main(["codex", "register", "add", "wren-workbench", "--connection", str(conn)]) == 0
+    assert cli.main(["codex", "register", "add", "ada-workbench", "--connection", str(conn)]) == 0
     capsys.readouterr()
     cli.main(["codex", "belay", "--connection", str(conn), "--json"])
     rep = json.loads(capsys.readouterr().out)
@@ -137,14 +137,14 @@ def test_register_refuses_a_config_it_cannot_edit_safely(tmp_path, capsys):
     conn = write_connection(str(tmp_path / "w.yaml"), Connection(host="node-a", port=7255, bearer_token="t"))
     _write_user_config('mcp_servers.other.url = "http://192.0.2.1/mcp"\n')
     before = open(_config_toml(), encoding="utf-8").read()
-    assert cli.main(["codex", "register", "add", "wren-workbench", "--connection", conn]) == 2
+    assert cli.main(["codex", "register", "add", "ada-workbench", "--connection", conn]) == 2
     assert "inline table or dotted keys" in capsys.readouterr().err
     assert open(_config_toml(), encoding="utf-8").read() == before, "not touched"
     if common._toml is not None:
         _write_user_config('model = "unterminated\n')
-        assert cli.main(["codex", "register", "add", "wren-workbench", "--connection", conn]) == 2
+        assert cli.main(["codex", "register", "add", "ada-workbench", "--connection", conn]) == 2
         assert "not valid TOML" in capsys.readouterr().err
-    assert cli.main(["codex", "register", "add", "wren.workbench", "--connection", conn]) == 64
+    assert cli.main(["codex", "register", "add", "ada.workbench", "--connection", conn]) == 64
 
 
 def test_the_hand_parser_reads_what_tomllib_reads(monkeypatch):
@@ -159,7 +159,7 @@ def test_the_hand_parser_reads_what_tomllib_reads(monkeypatch):
 def test_register_list_says_how_each_server_authenticates(tmp_path, capsys):
     _write_user_config(USER_CONFIG + '\n[mcp_servers.leaky]\nurl = "http://192.0.2.2/mcp"\nhttp_headers = { Authorization = "Bearer x" }\n')
     conn = write_connection(str(tmp_path / "w.yaml"), Connection(host="node-a", port=7255, bearer_token="t"))
-    cli.main(["codex", "register", "add", "wren-workbench", "--connection", conn])
+    cli.main(["codex", "register", "add", "ada-workbench", "--connection", conn])
     capsys.readouterr()
     assert cli.main(["codex", "register", "list"]) == 0
     out = capsys.readouterr().out
@@ -169,7 +169,7 @@ def test_register_list_says_how_each_server_authenticates(tmp_path, capsys):
 # ── wake ─────────────────────────────────────────────────────────────────
 def test_wake_reads_the_servers_now_approves_them_for_the_run_only_and_frames_the_message(tmp_path, fake_codex, monkeypatch):
     proj = tmp_path / "proj"; proj.mkdir()
-    _write_user_config(USER_CONFIG + '\n[mcp_servers.wren-workbench]\nurl = "http://node-a:7255/mcp"\n'
+    _write_user_config(USER_CONFIG + '\n[mcp_servers.ada-workbench]\nurl = "http://node-a:7255/mcp"\n'
                        '\n[mcp_servers.parked]\nurl = "http://192.0.2.3/mcp"\nenabled = false\n')
     monkeypatch.setenv("SEREN_CODEX_BIN", fake_codex.path)
     monkeypatch.setenv("SEREN_RIPPLE_EVENT", "draft_submitted")
@@ -181,8 +181,8 @@ def test_wake_reads_the_servers_now_approves_them_for_the_run_only_and_frames_th
     assert argv[:2] == ["exec", "--skip-git-repo-check"] and argv[-1] == "-", "the message goes on stdin"
     assert os.path.normcase(argv[argv.index("-C") + 1]) == os.path.normcase(str(proj))
     sets = [argv[i + 1] for i, a in enumerate(argv) if a == "-c"]
-    assert "mcp_servers.wren-workbench.default_tools_approval_mode=approve" in sets
-    assert "mcp_servers.wren-workbench.required=true" in sets
+    assert "mcp_servers.ada-workbench.default_tools_approval_mode=approve" in sets
+    assert "mcp_servers.ada-workbench.required=true" in sets
     assert not any("parked" in s for s in sets), "a disabled server is not asked for"
     assert "--sandbox" not in argv, "exec's read-only default stands"
     assert 'review "draft 15" & say why' in call["stdin"] and "Nobody is in the room" in call["stdin"]
@@ -198,14 +198,14 @@ def test_wake_refuses_to_start_a_model_with_no_memory_or_no_binary(tmp_path, cap
     _write_user_config('model = "m"\n')
     assert cli.main(["codex", "wake", "--project", str(proj), "--run", "hi"]) == 2
     assert "no MCP servers are enabled" in capsys.readouterr().err
-    _write_user_config('[mcp_servers.wren-workbench]\nurl = "http://node-a:7255/mcp"\n')
+    _write_user_config('[mcp_servers.ada-workbench]\nurl = "http://node-a:7255/mcp"\n')
     assert cli.main(["codex", "wake", "--project", str(proj), "--run", "hi"]) == 2
     assert "no `codex` for this account" in capsys.readouterr().err
 
 
 def test_wake_puts_the_bookmark_in_the_message_and_the_hook_stays_quiet(tmp_path, fake_codex, margin, monkeypatch, capsys):
     proj = tmp_path / "proj"; proj.mkdir()
-    _write_user_config('[mcp_servers.wren-workbench]\nurl = "http://node-a:7255/mcp"\n')
+    _write_user_config('[mcp_servers.ada-workbench]\nurl = "http://node-a:7255/mcp"\n')
     port = margin.server_address[1]
     mconn = write_connection(str(tmp_path / "node-a" / "margin.yaml"),
                              Connection(host="127.0.0.1", port=port, bearer_token="margin-secret"))
@@ -224,12 +224,12 @@ def test_wake_puts_the_bookmark_in_the_message_and_the_hook_stays_quiet(tmp_path
 
 def test_wake_yaml_writes_a_command_that_is_this_carabiner_not_a_server_list(tmp_path, capsys):
     proj = tmp_path / "proj"; proj.mkdir()
-    _write_user_config('[mcp_servers.wren-workbench]\nurl = "http://node-a:7255/mcp"\n')
+    _write_user_config('[mcp_servers.ada-workbench]\nurl = "http://node-a:7255/mcp"\n')
     assert cli.main(["codex", "wake", "--project", str(proj), "--yaml", "2", "--python", "/venv/bin/python"]) == 0
     out = capsys.readouterr().out
     cmd = json.loads([l for l in out.splitlines() if l.startswith("  command: ")][0].split(": ", 1)[1])
     assert cmd[0] == "/venv/bin/python" and cmd[-2:] == ["--run", "{message}"] and cmd[cmd.index("wake") - 1] == "codex"
-    assert "wren-workbench" not in out
+    assert "ada-workbench" not in out
 
 
 def test_an_npm_shim_is_followed_to_the_binary(tmp_path, monkeypatch):
@@ -287,7 +287,7 @@ def test_belay_lets_go_with_nothing_and_holds_when_it_is_all_there(tmp_path, fak
     assert by[("bookmark", "hook")] == "skipped" and by[("due", "channel")] == "skipped"
 
     monkeypatch.setenv("SEREN_CODEX_BIN", fake_codex.path)
-    _write_user_config('[mcp_servers.wren-workbench]\nurl = "http://node-a:7255/mcp"\nhttp_headers_helper = "x"\n')
+    _write_user_config('[mcp_servers.ada-workbench]\nurl = "http://node-a:7255/mcp"\nhttp_headers_helper = "x"\n')
     cli.main(["codex", "bookmark", "install", mconn])
     capsys.readouterr()
     rc = cli.main(["codex", "belay", "--project", str(proj), "--margin", mconn, "--dry-wake", "--json"])
@@ -298,7 +298,7 @@ def test_belay_lets_go_with_nothing_and_holds_when_it_is_all_there(tmp_path, fak
     assert by[("bookmark", "hook")] == by[("bookmark", "margin /health")] == "held"
     assert fake_codex.calls()[-1]["argv"] == ["--version"]
 
-    _write_user_config('[mcp_servers.wren-workbench]\nurl = "http://node-a:7255/mcp"\nbearer_token = "oops"\n')
+    _write_user_config('[mcp_servers.ada-workbench]\nurl = "http://node-a:7255/mcp"\nbearer_token = "oops"\n')
     cli.main(["codex", "belay", "--json"])
     rep = json.loads(capsys.readouterr().out)
     entries = [c for c in rep["checks"] if c["name"] == "entries"][0]

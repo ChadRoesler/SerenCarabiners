@@ -173,6 +173,46 @@ def unset(text: str, key: str) -> str:
     return "\n".join(lines)
 
 
+def _route_lines(name: str, route: Any, pad: str) -> List[str]:
+    """One route as yaml: `name: file.yaml`, or `name:` with its url and token under it."""
+    if not isinstance(route, dict):
+        return [f"{pad}{name}: {scalar(route)}"]
+    return [f"{pad}{name}:"] + [f"{pad}  {k}: {scalar(v)}" for k, v in route.items()]
+
+
+def put_route(text: str, name: str, route: Any, top: bool = False) -> str:
+    """Write a connection: under `servers:` (three levels, which `set` does
+    not do), or as a top-level block (`top`: the bookmark, the kitchen). One
+    that is there is replaced where it stands, whatever shape it had; a new
+    one goes at the end of `servers:` (or of the file)."""
+    lines = text.split("\n")
+    if top:
+        at = _top(lines, name)
+        if at is None:
+            return _append(lines, _route_lines(name, route, ""))
+        lines[at:_span(lines, at)] = _route_lines(name, route, "")
+        return "\n".join(lines)
+    head, at = _find(lines, f"servers.{name}")
+    if head is None:
+        return _append(lines, ["servers:"] + _route_lines(name, route, "  "))
+    if _value(lines[head]) not in ("", "{}"):
+        raise ValueError("servers is a single value in this file, not a block")
+    if _value(lines[head]) == "{}":
+        lines[head] = f"servers:{_comment(lines[head])}"
+    if at is not None:
+        lines[at:_span(lines, at)] = _route_lines(name, route, lines[at][:_indent(lines[at])])
+        return "\n".join(lines)
+    end = _children(lines, head, 0)
+    kids = [_indent(lines[i]) for i in range(head + 1, end) if _content(lines[i])]
+    lines[end:end] = _route_lines(name, route, " " * (kids[0] if kids else 2))
+    return "\n".join(lines)
+
+
+def drop_route(text: str, name: str, top: bool = False) -> str:
+    """Take a connection out, with everything under it."""
+    return unset(text, name if top else f"servers.{name}")
+
+
 def _append(lines: List[str], new: List[str]) -> str:
     while lines and lines[-1] == "":
         lines.pop()

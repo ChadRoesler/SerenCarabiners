@@ -12,6 +12,12 @@ is this verb, and this verb does the lookup at that moment:
 
     command: [<python>, <this .kbh>, "claude", "wake", "--project", <dir>, "--run", "{message}"]
 
+ONLY THE YAML'S SERVERS ARE PRE-APPROVED, when it lists any. The lookup above
+finds every server the harness has for the folder; on a work box that is the
+company's too, and a wake has nobody in the room to ask. The yaml is read at
+wake time as well, so this is still "now", not "install day". With no yaml, or
+one that lists no servers, every registered server is approved as before.
+
 THE BINARY IS FOUND FOR THE ACCOUNT, NOT TRUSTED TO PATH. A service that wakes
 the model (the Observatory, as run_as) hands it the SERVICE's PATH. The first
 wake over the cluster (7 Oct 2026) refused with "no claude on PATH" while claude
@@ -156,6 +162,13 @@ def run(argv: List[str]) -> int:
         print(f"no MCP servers are registered for {project} in {claude_json} (or its .mcp.json): a wake would "
               f"start the model without its memory. kbh claude register first.", file=sys.stderr)
         return 2
+    if cfg and cfg.servers:
+        registered, servers = servers, cfg.wake_servers(servers)
+        if not servers:
+            print(f"{cfg.path} lists {', '.join(cfg.servers)} under `servers:` and none of them is registered "
+                  f"({', '.join(registered)} {'is' if len(registered) == 1 else 'are'}): a wake approves only the "
+                  f"servers the yaml names. kbh claude register apply.", file=sys.stderr)
+            return 2
     cwd = os.path.abspath(os.path.expanduser(project))
     allowed = ",".join(f"mcp__{s}" for s in servers)
     # The box's session.model (the Rack sets it): a hippocampus on Haiku on one

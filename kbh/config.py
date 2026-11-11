@@ -11,14 +11,14 @@ every verb:
     python: C:\\...\\venvs\\observatory\\Scripts\\python.exe   # runs the .kbh from hooks and ripples
     connections: C:\\Users\\alice\\seren\\brain\\routes    # the folder of connection files (kbh.tokens)
     servers:                                   # what register registers: name -> connection file
-      wren-workbench: workbench.yaml
+      ada-workbench: workbench.yaml
     bookmark: margin.yaml                      # Margin's connection file; blank = no bookmark hook
     framing: framing.md                        # the text a woken session is given; beside this yaml
     wake:
       timeout_seconds: 900
     session:                                   # what a session of this harness may do (optional)
       permission_mode: acceptEdits
-      allowed_tools: mcp__wren-workbench__*, Read
+      allowed_tools: mcp__ada-workbench__*, Read
 
 THE SESSION BLOCK is the box's defaults for anything in Seren that starts or
 drives a session of this harness (22 Oct 2026: whatever is specific to a
@@ -143,6 +143,7 @@ class HarnessConfig:
     servers: Dict[str, Any] = field(default_factory=dict)
     bookmark: Any = ""                                          # Margin: a connection file, an inline route, or ""
     framing: str = ""                                           # path to the framing text, or "" = the package default
+    kitchen: Any = ""                                           # the kitchen, for presence: a route (+ partner, hand), a file, or ""
     wake: Dict[str, Any] = field(default_factory=dict)
     session: Dict[str, Any] = field(default_factory=dict)       # what a session may do: permission_mode, allowed_tools
     path: str = ""                                              # the yaml this came from
@@ -177,12 +178,32 @@ class HarnessConfig:
         base = self.resolve(self.connections) if self.connections else self.folder
         return self.resolve(str(target), base)
 
+    def kitchen_connection(self) -> str:
+        """The kitchen's connection reference: `<this yaml>#kitchen` for an
+        inline route, a connection file otherwise, "" when there is none."""
+        if isinstance(self.kitchen, dict):
+            return f"{self.path}#kitchen"
+        if not self.kitchen:
+            return ""
+        base = self.resolve(self.connections) if self.connections else self.folder
+        return self.resolve(str(self.kitchen), base)
+
+    def partner(self) -> str:
+        """Whose sessions these are, to the kitchen: `partner:` under
+        `kitchen:`, or at the top when the kitchen is a connection file."""
+        inline = self.kitchen.get("partner") if isinstance(self.kitchen, dict) else ""
+        return str(inline or self.extra.get("partner") or "").strip()
+
+    def kitchen_hand(self) -> str:
+        """A hand pinned in the yaml (`hand:` under `kitchen:`); "" lets the kitchen name it."""
+        return str(self.kitchen.get("hand") or "").strip() if isinstance(self.kitchen, dict) else ""
+
     def routes(self) -> Dict[str, str]:
         """Every server by name -> its connection reference."""
         return {name: self.connection(name) for name in self.servers}
 
     def has_inline_token(self) -> bool:
-        items = list(self.servers.values()) + ([self.bookmark] if isinstance(self.bookmark, dict) else [])
+        items = list(self.servers.values()) + [r for r in (self.bookmark, self.kitchen) if isinstance(r, dict)]
         return any(isinstance(r, dict) and r.get("bearer_token") for r in items)
 
     def framing_path(self) -> str:
@@ -197,6 +218,14 @@ class HarnessConfig:
         from .schema import split_tools
         return split_tools(self.session.get("allowed_tools"))
 
+    def wake_servers(self, registered: list) -> list:
+        """Which of the harness's registered servers a wake may pre-approve:
+        the ones this yaml lists under `servers:`. A wake runs with nobody in
+        the room, and a harness on a work box has servers that are not Seren's
+        (10 Nov 2026); naming a server here is what says it is. A yaml that
+        lists none leaves it as it was: everything registered."""
+        return [s for s in registered if s in self.servers] if self.servers else list(registered)
+
     def wake_timeout(self) -> float:
         try:
             return float(self.wake.get("timeout_seconds", 900))
@@ -207,14 +236,17 @@ class HarnessConfig:
 def load(path: str) -> HarnessConfig:
     path = os.path.abspath(os.path.expanduser(path))
     data = read_yaml(path)                                       # OSError if missing, on purpose
-    known = {"carabiner", "project", "python", "connections", "servers", "bookmark", "framing", "wake", "session"}
+    known = {"carabiner", "project", "python", "connections", "servers", "bookmark", "framing", "wake", "session",
+             "kitchen"}
     servers = data.get("servers") if isinstance(data.get("servers"), dict) else {}
     bookmark = data.get("bookmark")
+    kitchen = data.get("kitchen")
     return HarnessConfig(carabiner=str(data.get("carabiner") or ""), project=str(data.get("project") or ""),
                          python=str(data.get("python") or ""), connections=str(data.get("connections") or ""),
                          servers={str(k): (dict(v) if isinstance(v, dict) else str(v)) for k, v in servers.items()},
                          bookmark=dict(bookmark) if isinstance(bookmark, dict) else str(bookmark or ""),
                          framing=str(data.get("framing") or ""),
+                         kitchen=dict(kitchen) if isinstance(kitchen, dict) else str(kitchen or ""),
                          wake=dict(data.get("wake") or {}) if isinstance(data.get("wake"), dict) else {},
                          session=dict(data.get("session") or {}) if isinstance(data.get("session"), dict) else {},
                          path=path, extra={k: v for k, v in data.items() if k not in known})
@@ -292,7 +324,7 @@ def write_starter(carabiner: str, display: str, into: str, project: str, python:
     yaml_path = os.path.join(into, f"{carabiner}.yaml")
     if os.path.exists(yaml_path):
         raise FileExistsError(f"{yaml_path} already exists; edit it, or move it aside")
-    lines = "".join(_yaml_entry(k, v, 2) for k, v in servers.items()) if servers else "  # wren-workbench: workbench.yaml\n"
+    lines = "".join(_yaml_entry(k, v, 2) for k, v in servers.items()) if servers else "  # ada-workbench: workbench.yaml\n"
     if isinstance(bookmark, dict):
         bookmark_text = "\n" + "".join(f"  {k}: {_yaml_scalar(v)}\n" for k, v in bookmark.items()).rstrip("\n")
     else:

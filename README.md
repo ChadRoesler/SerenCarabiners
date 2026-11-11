@@ -15,6 +15,7 @@ harness it is talking to:
 | `wake` | start a headless session with a message, memory tools pre-approved, framed the way *this* harness needs | the Hippocampus (a draft, a brief asked for), Lodestar's scheduler, the Observatory |
 | `bookmark` | put Margin's bookmark in front of the model as a session starts | Margin, the Workbench |
 | `due` | tell a live session something is waiting, or say `unsupported` | the Hippocampus, the Workbench, Lodestar |
+| `presence` | tell the kitchen a session is here (its id, folder and box) and when it goes, from the harness's own hooks | the Kitchen |
 | `belay` | *on belay? belay on. climbing. climb on.* - prove each clip holds before weight goes on it | you, after an install or a move |
 
 The strap has two ends. The harness end is the `.kbh`, on the harness box.
@@ -25,9 +26,11 @@ points the harness at).
 
 ## Use
 
+Replace ada with the name of your install.
+
 ```bash
 python claude.kbh list
-KBH_TOKEN_WREN_WORKBENCH=... python claude.kbh claude install --project ~/work --server wren-workbench=http://nuc:7255 --bookmark http://nuc:7251
+KBH_TOKEN_ADA_WORKBENCH=... python claude.kbh claude install --project ~/work --server ada-workbench=http://nuc:7255 --bookmark http://nuc:7251
 python claude.kbh claude bookmark install ~/.seren/nuc/margin.yaml
 python claude.kbh claude wake --project ~/work --yaml 2      # the lines for an Observatory's ripple:
 python claude.kbh claude belay --project ~/work --connection ~/.seren/nuc/workbench.yaml --margin ~/.seren/nuc/margin.yaml --dry-wake
@@ -42,21 +45,46 @@ that box:
 
 ```yaml
 servers:
-  wren-workbench:
+  ada-workbench:
     url: http://nuc:7255
     bearer_token: "..."          # or bearer_token_env: NAME, or bearer_token_keyring: "svc/user"
 bookmark:
   url: http://nuc:7251
-  bearer_token_env: WREN_MARGIN_TOKEN
+  bearer_token_env: ADA_MARGIN_TOKEN
 ```
 
 The harness's headers helper and its session-start hook read the route by
-reference (`claude.yaml#wren-workbench`, `claude.yaml#bookmark`) when they run,
+reference (`claude.yaml#ada-workbench`, `claude.yaml#bookmark`) when they run,
 so a rotated token needs no re-registration. `install --server NAME=URL` takes
 the token from `KBH_TOKEN_<NAME>` in the environment (never a command line)
 and makes the yaml 0600. When the service runs on the same box, a **connection
 file** (the service's own config, or just its `server:` block) does instead:
 `--server NAME=FILE`.
+
+## Adding a connection later: `route`
+
+`install` writes the yaml once and never overwrites it. A service added
+afterwards, or one that moved, is a `route`, not a text editor:
+
+```bash
+KBH_TOKEN_MEMORY=... python claude.kbh claude route add memory http://nuc:7420
+python claude.kbh claude route add kitchen http://nuc:7261 --partner ada    # asks for the token, hidden
+python claude.kbh claude route add ada-workbench http://newbox:7255         # moved: its token is kept
+python claude.kbh claude route remove memory
+python claude.kbh claude route list
+```
+
+The name is a server the model will see, or `bookmark` (Margin) or `kitchen`
+(presence). The token comes from `KBH_TOKEN_<NAME>` in the environment, from a
+pointer (`--token-env VAR`, `--token-keyring SVC/USER`), or from a hidden
+prompt when a person is at a terminal; `--no-token` says the service is open.
+It is never an argument. With no token and nobody to ask, nothing is written.
+
+Then the harness is told (a server is registered, a bookmark or a kitchen gets
+its hooks, a removed one loses them) and belay runs; `--no-apply` changes only
+the yaml. The yaml's comments are kept and the old file stays beside it as
+`.seren-bak`. `--json` is the answer a form's "add service" button reads, so a
+box with Lodestar and a box without one run the same command.
 
 ## The shape, installed
 
@@ -76,7 +104,7 @@ claude.kbh                      the zip: the binder + the Claude carabiner (+ a 
 
 ```bash
 python claude.kbh claude install --project ~/work --python /venv/bin/python \
-    --server wren-workbench=workbench.yaml --bookmark margin.yaml     # --into defaults to the zip's own folder
+    --server ada-workbench=workbench.yaml --bookmark margin.yaml     # --into defaults to the zip's own folder
 python claude.kbh claude belay                                       # finds claude.yaml beside the zip
 ```
 
@@ -85,8 +113,8 @@ makes `chads-claude.kbh`: the base plus your `custom/`, one file to hand over.
 On install the shipped `custom/` lands beside the zip; if the box already has
 one, the box's wins and the shipped one lands as `custom.shipped/` to merge by
 hand. **A tricks pack** is a `.kbh` with only `custom/`
-(`python build.py --tricks wren-tricks --with-custom ./tricks`): `python
-wren-tricks.kbh install --into DIR` layers it onto whatever carabiner is
+(`python build.py --tricks ada-tricks --with-custom ./tricks`): `python
+ada-tricks.kbh install --into DIR` layers it onto whatever carabiner is
 installed there.
 
 ## How it rolls on this box: `claude.yaml`
@@ -101,7 +129,7 @@ project: D:\work\project                    # where wakes run
 python: C:\...\venvs\observatory\Scripts\python.exe   # runs the .kbh from hooks and ripples
 connections: C:\Users\alice\seren\brain\routes    # the folder of connection files
 servers:                                     # what `register apply` registers
-  wren-workbench: workbench.yaml
+  ada-workbench: workbench.yaml
 bookmark: margin.yaml                        # Margin's connection file; blank = no hook
 framing: framing.md                          # the text a woken session is given, beside this yaml
 wake:
@@ -109,7 +137,7 @@ wake:
 session:                                     # optional: what a session of this harness may do
   permission_mode: acceptEdits
   allowed_tools:
-    - mcp__wren-workbench__*
+    - mcp__ada-workbench__*
 ```
 
 **The `session:` block** is the box's defaults for anything in Seren that starts
@@ -128,6 +156,37 @@ waking unframed. The yaml is found beside the `.kbh`, or at `~/.seren/kbh/claude
 or wherever `--config` / `KBH_CONFIG` says; with it, the Observatory's ripple
 command is just `kbh claude wake --config claude.yaml --run {message}`, and
 changing the yaml changes the next wake.
+
+## Presence: a magnet from the first minute
+
+The kitchen keeps a magnet per hand: who is working where, and how to get back
+to them. That cannot depend on the model remembering a first step, so the
+harness says it. Add the kitchen to `claude.yaml` and install the hooks:
+
+```yaml
+kitchen:
+  url: http://nuc:7431
+  bearer_token: "..."          # or bearer_token_env / bearer_token_keyring; none on loopback
+  partner: ada                # whose magnets these are
+  # hand: carabiner            # optional: pin it; else the kitchen names it from the folder
+```
+
+```bash
+python claude.kbh claude presence install     # a SessionStart and a SessionEnd hook
+python claude.kbh claude belay                # presence / hooks, presence / kitchen /health
+```
+
+Every session a person opens then POSTs `{event: start, partner, harness,
+session, cwd, box, source}` to the kitchen's `/api/sessions`, and `{event: end,
+session, reason}` when it closes. What the kitchen answers is printed into the
+session, so the model is told which hand it is. The hand, whether two live
+sessions in one folder make a `-2`, and which reasons count as an ending are
+all the kitchen's to decide; the carabiner passes Claude Code's words through
+as given. A start never sticks a magnet to a fridge.
+
+It never fails or stalls a session: no `kitchen:` in the yaml, an older kitchen
+without the route, a kitchen that is down are each exit 0 and at most one line.
+A woken session says nothing. Codex has no `presence` yet.
 
 ## Codex: the second harness
 
@@ -150,11 +209,47 @@ and an npm install is a `codex.cmd` shim that needs node, so on Windows the
 carabiner follows it to the `codex.exe` it starts.
 
 ```bash
-KBH_TOKEN_WREN_WORKBENCH=... python codex.kbh codex install --project ~/work --python /venv/bin/python     --server wren-workbench=http://nuc:7255 --bookmark margin.yaml
+KBH_TOKEN_ADA_WORKBENCH=... python codex.kbh codex install --project ~/work --python /venv/bin/python     --server ada-workbench=http://nuc:7255 --bookmark margin.yaml
 python codex.kbh codex register apply
 python codex.kbh codex bookmark install          # then trust it once: codex, /hooks
 python codex.kbh codex belay --dry-wake
 ```
+
+## The memory-only shape: no Workbench, no Margin, no Lodestar
+
+A box with only Memory, Loci, the Corpus Callosum and the Hippocampus still
+takes a carabiner. Nothing in it needs the Workbench by name: `servers:` is
+any list of routes, each registered at its own `/mcp`.
+
+```bash
+KBH_TOKEN_MEMORY=... KBH_TOKEN_LOCI=... KBH_TOKEN_CORPUS_CALLOSUM=... KBH_TOKEN_HIPPOCAMPUS=... \
+python claude.kbh claude install --project ~/work \
+    --server memory=http://127.0.0.1:7420 --server loci=http://127.0.0.1:7422 \
+    --server corpus-callosum=http://127.0.0.1:7423 --server hippocampus=http://127.0.0.1:7424
+python claude.kbh claude register apply
+python claude.kbh claude belay --dry-wake
+```
+
+(Those are each service's default port; its own config wins. A service with no
+token is fine: leave its `KBH_TOKEN_` out and the route is open.)
+
+- **No `--bookmark`** means no session-start hook, and belay skips the
+  bookmark checks rather than letting go.
+- **The wake comes straight from the Hippocampus.** Its `ripple:` block takes
+  `type: script`, and `python claude.kbh claude wake --yaml 2` prints the
+  `command:` and `cwd:` lines to paste under it. Register the Hippocampus as
+  well as Memory: the woken session reviews on Memory's server and calls
+  `nudge` on the Hippocampus's.
+- **Belay tries every server** when the yaml lists more than one, as
+  `initialize: memory`, `initialize: loci` and so on; with one server the check
+  names stay bare.
+- **A wake pre-approves only the servers the yaml lists.** A work box has the
+  company's MCP servers registered beside Seren's, and a wake has nobody in the
+  room to ask; they stay unapproved. A yaml that lists no servers approves
+  every registered one, as before, and one whose servers are all unregistered
+  refuses to wake.
+- **The default framing talks about letters**, which are Margin's. Edit
+  `framing.md` on a box that has none.
 
 ## Write your own
 

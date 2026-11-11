@@ -15,23 +15,23 @@ def _register_in_json(cj, user):
 
 def test_the_by_hand_yaml_reader_handles_two_levels_quotes_and_comments():
     text = ('# how it rolls\ncarabiner: claude\nproject: "D:\\\\work"   # the folder\npython: /v/bin/python\n'
-            'servers:\n  wren-workbench: workbench.yaml\n  other: "o.yaml"\nbookmark: margin.yaml\nframing: framing.md\n'
+            'servers:\n  ada-workbench: workbench.yaml\n  other: "o.yaml"\nbookmark: margin.yaml\nframing: framing.md\n'
             'wake:\n  timeout_seconds: 900\n  dry: true\n')
     d = config._two_levels_by_hand(text)
     # a double-quoted value has its escapes undone, as PyYAML does it
-    assert d["project"] == "D:\\work" and d["servers"] == {"wren-workbench": "workbench.yaml", "other": "o.yaml"}
+    assert d["project"] == "D:\\work" and d["servers"] == {"ada-workbench": "workbench.yaml", "other": "o.yaml"}
     assert d["wake"] == {"timeout_seconds": 900, "dry": True} and d["bookmark"] == "margin.yaml"
 
 
 def test_init_writes_the_yaml_and_the_framing_beside_it_and_never_overwrites(tmp_path, capsys):
     into = tmp_path / "kbh"
     rc = cli.main(["claude", "init", "--into", str(into), "--project", str(tmp_path / "proj"), "--python", "/v/py",
-                   "--connections", str(tmp_path / "nuc"), "--server", "wren-workbench=workbench.yaml", "--bookmark", "margin.yaml"])
+                   "--connections", str(tmp_path / "nuc"), "--server", "ada-workbench=workbench.yaml", "--bookmark", "margin.yaml"])
     assert rc == 0
     cfg = config.load(str(into / "claude.yaml"))
-    assert cfg.carabiner == "claude" and cfg.python == "/v/py" and cfg.servers == {"wren-workbench": "workbench.yaml"}
+    assert cfg.carabiner == "claude" and cfg.python == "/v/py" and cfg.servers == {"ada-workbench": "workbench.yaml"}
     assert cfg.bookmark == "margin.yaml" and cfg.framing == "framing.md"
-    assert cfg.connection("wren-workbench") == os.path.normpath(str(tmp_path / "nuc" / "workbench.yaml"))
+    assert cfg.connection("ada-workbench") == os.path.normpath(str(tmp_path / "nuc" / "workbench.yaml"))
     assert cfg.framing_path() == os.path.normpath(str(into / "framing.md"))
     assert "Nobody is in the room" in (into / "framing.md").read_text(encoding="utf-8"), "the default, copied to edit"
     capsys.readouterr()
@@ -48,16 +48,16 @@ def test_every_verb_reads_the_config_and_the_framing_is_the_file_it_names(tmp_pa
     write_connection(str(nuc / "margin.yaml"), Connection(host="127.0.0.1", port=margin.server_address[1], bearer_token="margin-secret"))
     into = tmp_path / "kbh"
     cli.main(["claude", "init", "--into", str(into), "--project", str(proj), "--python", "/v/py", "--connections", str(nuc),
-              "--server", "wren-workbench=workbench.yaml", "--bookmark", "margin.yaml"])
+              "--server", "ada-workbench=workbench.yaml", "--bookmark", "margin.yaml"])
     (into / "framing.md").write_text("Woken for {event}. Memory: {servers}.\n\n{message}\n", encoding="utf-8")
     yaml_path = str(into / "claude.yaml")
     capsys.readouterr()
 
     # register apply: every server in the config, with the config's python in the helper
     assert cli.main(["claude", "register", "apply", "--config", yaml_path]) == 0
-    entry = fake_claude.registry()["wren-workbench"]
+    entry = fake_claude.registry()["ada-workbench"]
     assert entry["url"] == "http://nuc:7255/mcp" and entry["headersHelper"].startswith('"/v/py"' if os.name == "nt" else "/v/py")
-    _register_in_json(own_settings, {"wren-workbench": entry})
+    _register_in_json(own_settings, {"ada-workbench": entry})
 
     # bookmark install with no argument: the config's bookmark
     assert cli.main(["claude", "bookmark", "install", "--config", yaml_path]) == 0
@@ -76,7 +76,7 @@ def test_every_verb_reads_the_config_and_the_framing_is_the_file_it_names(tmp_pa
     assert cli.main(["claude", "wake", "--config", yaml_path, "--run", "do the thing", "--event", "draft_submitted"]) == 0
     call = fake_claude.calls()[-1]
     assert os.path.normcase(call["cwd"]) == os.path.normcase(str(proj))
-    assert call["stdin"] == "Woken for draft_submitted. Memory: wren-workbench.\n\ndo the thing\n"
+    assert call["stdin"] == "Woken for draft_submitted. Memory: ada-workbench.\n\ndo the thing\n"
     # a named framing that is missing refuses, rather than waking unframed
     (into / "framing.md").unlink()
     assert cli.main(["claude", "wake", "--config", yaml_path, "--run", "x"]) == 2
@@ -113,9 +113,9 @@ def test_the_session_block_is_read_as_a_list_or_a_comma_line(tmp_path):
     Symposium reads it as the box's defaults."""
     y = tmp_path / "claude.yaml"
     y.write_text("carabiner: claude\nsession:\n  permission_mode: acceptEdits\n"
-                 "  allowed_tools:\n    - mcp__wren-workbench__*\n    - Read\n", encoding="utf-8")
+                 "  allowed_tools:\n    - mcp__ada-workbench__*\n    - Read\n", encoding="utf-8")
     cfg = config.load(str(y))
-    assert cfg.session_mode() == "acceptEdits" and cfg.session_allowed_tools() == ["mcp__wren-workbench__*", "Read"]
+    assert cfg.session_mode() == "acceptEdits" and cfg.session_allowed_tools() == ["mcp__ada-workbench__*", "Read"]
     assert "session" not in cfg.extra, "a known key, not a stray one"
     d = config._two_levels_by_hand("session:\n  permission_mode: plan\n  allowed_tools: Read, Bash(git:*)\n")
     by_hand = config.HarnessConfig(session=d["session"])

@@ -96,7 +96,16 @@ class CodexCarabiner(Carabiner):
         except OSError as e:
             checks.append(lambda e=e: let_go("config", "on belay?", "codex.yaml", f"cannot read it: {e}"))
         project = opt("--project") or (cfg.project if cfg else "")
-        connection = opt("--connection") or (cfg.connection(next(iter(cfg.servers))) if cfg and cfg.servers else "")
+        # Every server the config lists is tried, not only the first: with no single
+        # door (Memory, Loci, the Callosum and the Hippocampus each registered direct)
+        # the one that is down is rarely the first. One server, or --connection, keeps
+        # the bare check names kbh.upgrade compares before and after.
+        if opt("--connection"):
+            connections = [("", opt("--connection"))]
+        elif cfg and cfg.servers:
+            connections = [(n if len(cfg.servers) > 1 else "", cfg.connection(n)) for n in cfg.servers]
+        else:
+            connections = []
         margin = opt("--margin") or (cfg.connection(cfg.bookmark) if cfg and cfg.bookmark else "")
         framing_path = cfg.framing_path() if cfg and cfg.framing else ""
         toml = opt("--codex-config") or config_path()
@@ -137,22 +146,23 @@ class CodexCarabiner(Carabiner):
                         servers=sorted(servers))
         checks.append(register_entries)
 
-        if connection:
-            def connection_reads() -> Check:
+        for label, connection in connections:
+            tag = f": {label}" if label else ""
+            def connection_reads(connection=connection, tag=tag) -> Check:
                 conn = read_connection(connection)
                 if not conn.port:
-                    return let_go("register", "on belay?", "connection", f"{connection} names no port")
+                    return let_go("register", "on belay?", "connection" + tag, f"{connection} names no port")
                 tok = "a token pointer" if conn.has_token_pointer() else "no token (open service)"
-                return held("register", "on belay?", "connection", f"{conn.mcp_url}, {tok}")
+                return held("register", "on belay?", "connection" + tag, f"{conn.mcp_url}, {tok}")
             checks.append(connection_reads)
 
-            def helper_runs() -> Check:
+            def helper_runs(connection=connection, tag=tag) -> Check:
                 conn = read_connection(connection)
                 helper = _register.entry_for(connection, conn,
                                              cfg.python if cfg and cfg.python else None)["http_headers_helper"]
                 done = run_like_codex(helper)
                 if done.returncode != 0:
-                    return let_go("register", "on belay?", "headers helper", (done.stderr or done.stdout).strip()[:200])
+                    return let_go("register", "on belay?", "headers helper" + tag, (done.stderr or done.stdout).strip()[:200])
                 hdrs = json.loads(done.stdout or "{}")
                 if not hdrs and conn.has_token_pointer():
                     # A token the helper could not find prints {}, and Codex then connects bare: a 401 later.
@@ -160,13 +170,13 @@ class CodexCarabiner(Carabiner):
                     if conn.bearer_token_env:
                         why += (f" - Codex clears the helper's environment, so ${conn.bearer_token_env} never "
                                 f"reaches it: put the token in the yaml (0600) or the keyring")
-                    return let_go("register", "on belay?", "headers helper", why)
-                return held("register", "on belay?", "headers helper",
+                    return let_go("register", "on belay?", "headers helper" + tag, why)
+                return held("register", "on belay?", "headers helper" + tag,
                             ("prints an Authorization header" if hdrs else "prints {} (open service)")
                             + ", run the way Codex runs it")
             checks.append(helper_runs)
 
-            def server_answers() -> Check:
+            def server_answers(connection=connection, tag=tag) -> Check:
                 conn = read_connection(connection)
                 token = conn.resolve_token()
                 body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
@@ -179,12 +189,12 @@ class CodexCarabiner(Carabiner):
                     req.add_header("Authorization", f"Bearer {token}")
                 try:
                     with urllib.request.urlopen(req, timeout=8) as r:
-                        return held("register", "belay on.", "initialize", f"{conn.mcp_url} answered {r.status}")
+                        return held("register", "belay on.", "initialize" + tag, f"{conn.mcp_url} answered {r.status}")
                 except urllib.error.HTTPError as e:
-                    return let_go("register", "belay on.", "initialize", f"{conn.mcp_url} answered HTTP {e.code}"
+                    return let_go("register", "belay on.", "initialize" + tag, f"{conn.mcp_url} answered HTTP {e.code}"
                                   + (" - the token is wrong" if e.code == 401 else ""))
                 except Exception as e:  # noqa: BLE001
-                    return let_go("register", "belay on.", "initialize", f"{conn.mcp_url}: {e}")
+                    return let_go("register", "belay on.", "initialize" + tag, f"{conn.mcp_url}: {e}")
             checks.append(server_answers)
 
         # wake
@@ -206,6 +216,11 @@ class CodexCarabiner(Carabiner):
                     return let_go("wake", "on belay?", "project", f"no Codex config at {toml}")
                 if not servers:
                     return let_go("wake", "on belay?", "project", "no MCP servers enabled: a wake would have no memory")
+                if cfg and cfg.servers:
+                    servers = cfg.wake_servers(servers)
+                    if not servers:
+                        return let_go("wake", "on belay?", "project",
+                                      f"none of the yaml's servers ({', '.join(cfg.servers)}) is registered: kbh codex register apply")
                 return held("wake", "on belay?", "project", f"would approve and require {', '.join(servers)}",
                             servers=servers)
             checks.append(project_servers)

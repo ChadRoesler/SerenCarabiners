@@ -3,7 +3,8 @@ The Claude Code carabiner.
 
 Verbs: register (MCP entries at user scope with a headersHelper), wake
 (`claude -p` with the registered servers pre-approved, framed), bookmark (a
-SessionStart hook that prints Margin's bookmark). due: unsupported - Claude
+SessionStart hook that prints Margin's bookmark), presence (SessionStart and
+SessionEnd hooks that tell the kitchen a session is here, and gone). due: unsupported - Claude
 Code has no channel into a live session yet; a draft that lands mid-conversation
 is found by asking sleep_status, or by the next wake.
 
@@ -26,6 +27,7 @@ from ...belay import Check, held, let_go, skipped
 from ...harness import Carabiner
 from ...tokens import read_connection
 from . import bookmark as _bookmark
+from . import presence as _presence
 from . import register as _register
 from . import wake as _wake
 from .common import claude_json_path, servers_by_scope, servers_for, settings_path
@@ -34,7 +36,7 @@ from .common import claude_json_path, servers_by_scope, servers_for, settings_pa
 class ClaudeCarabiner(Carabiner):
     name = "claude"
     display = "Claude Code"
-    supports = {"register": True, "wake": True, "bookmark": True, "due": False}
+    supports = {"register": True, "wake": True, "bookmark": True, "due": False, "presence": True}
     description = ("Claude Code (the CLI): MCP entries at user scope with a headersHelper, headless wakes with "
                    "the registered servers pre-approved and framed, Margin's bookmark as a SessionStart hook.")
 
@@ -46,6 +48,9 @@ class ClaudeCarabiner(Carabiner):
 
     def bookmark(self, argv: List[str]) -> int:
         return _bookmark.run(argv)
+
+    def presence(self, argv: List[str]) -> int:
+        return _presence.run(argv)
 
     # ── belay ──────────────────────────────────────────────────────────────
     def default_framing(self) -> str:
@@ -70,7 +75,16 @@ class ClaudeCarabiner(Carabiner):
             checks.append(lambda e=e: let_go("config", "on belay?", "claude.yaml", f"cannot read it: {e}"))
         # Flags win; the config fills what they leave blank.
         project = opt("--project") or (cfg.project if cfg else "")
-        connection = opt("--connection") or (cfg.connection(next(iter(cfg.servers))) if cfg and cfg.servers else "")
+        # Every server the config lists is tried, not only the first: with no single
+        # door (Memory, Loci, the Callosum and the Hippocampus each registered direct)
+        # the one that is down is rarely the first. One server, or --connection, keeps
+        # the bare check names kbh.upgrade compares before and after.
+        if opt("--connection"):
+            connections = [("", opt("--connection"))]
+        elif cfg and cfg.servers:
+            connections = [(n if len(cfg.servers) > 1 else "", cfg.connection(n)) for n in cfg.servers]
+        else:
+            connections = []
         margin = opt("--margin") or (cfg.connection(cfg.bookmark) if cfg and cfg.bookmark else "")
         framing_path = cfg.framing_path() if cfg and cfg.framing else ""
         claude_json = opt("--claude-json") or claude_json_path()
@@ -108,16 +122,17 @@ class ClaudeCarabiner(Carabiner):
                         servers=sorted(names))
         checks.append(register_entries)
 
-        if connection:
-            def connection_reads() -> Check:
+        for label, connection in connections:
+            tag = f": {label}" if label else ""
+            def connection_reads(connection=connection, tag=tag) -> Check:
                 conn = read_connection(connection)
                 if not conn.port:
-                    return let_go("register", "on belay?", "connection", f"{connection} names no port")
+                    return let_go("register", "on belay?", "connection" + tag, f"{connection} names no port")
                 tok = "a token pointer" if conn.has_token_pointer() else "no token (open service)"
-                return held("register", "on belay?", "connection", f"{conn.mcp_url}, {tok}")
+                return held("register", "on belay?", "connection" + tag, f"{conn.mcp_url}, {tok}")
             checks.append(connection_reads)
 
-            def helper_runs() -> Check:
+            def helper_runs(connection=connection, tag=tag) -> Check:
                 entry = _register.entry_for(connection, read_connection(connection))
                 helper = entry["headersHelper"]
                 import shlex
@@ -126,13 +141,13 @@ class ClaudeCarabiner(Carabiner):
                     parts = [p.strip('"') for p in parts]
                 done = subprocess.run(parts, capture_output=True, text=True, encoding="utf-8", timeout=60)
                 if done.returncode != 0:
-                    return let_go("register", "on belay?", "headersHelper", (done.stderr or done.stdout).strip()[:200])
+                    return let_go("register", "on belay?", "headersHelper" + tag, (done.stderr or done.stdout).strip()[:200])
                 hdrs = json.loads(done.stdout or "{}")
-                return held("register", "on belay?", "headersHelper",
+                return held("register", "on belay?", "headersHelper" + tag,
                             "prints an Authorization header" if hdrs else "prints {} (open service)")
             checks.append(helper_runs)
 
-            def server_answers() -> Check:
+            def server_answers(connection=connection, tag=tag) -> Check:
                 conn = read_connection(connection)
                 token = conn.resolve_token()
                 body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
@@ -145,12 +160,12 @@ class ClaudeCarabiner(Carabiner):
                     req.add_header("Authorization", f"Bearer {token}")
                 try:
                     with urllib.request.urlopen(req, timeout=8) as r:
-                        return held("register", "belay on.", "initialize", f"{conn.mcp_url} answered {r.status}")
+                        return held("register", "belay on.", "initialize" + tag, f"{conn.mcp_url} answered {r.status}")
                 except urllib.error.HTTPError as e:
-                    return let_go("register", "belay on.", "initialize", f"{conn.mcp_url} answered HTTP {e.code}"
+                    return let_go("register", "belay on.", "initialize" + tag, f"{conn.mcp_url} answered HTTP {e.code}"
                                   + (" - the token is wrong" if e.code == 401 else ""))
                 except Exception as e:  # noqa: BLE001
-                    return let_go("register", "belay on.", "initialize", f"{conn.mcp_url}: {e}")
+                    return let_go("register", "belay on.", "initialize" + tag, f"{conn.mcp_url}: {e}")
             checks.append(server_answers)
 
         # wake
@@ -172,6 +187,11 @@ class ClaudeCarabiner(Carabiner):
                     return let_go("wake", "on belay?", "project", f"no settings at {claude_json}")
                 if not servers:
                     return let_go("wake", "on belay?", "project", "no MCP servers for this folder: a wake would have no memory")
+                if cfg and cfg.servers:
+                    servers = cfg.wake_servers(servers)
+                    if not servers:
+                        return let_go("wake", "on belay?", "project",
+                                      f"none of the yaml's servers ({', '.join(cfg.servers)}) is registered: kbh claude register apply")
                 return held("wake", "on belay?", "project", f"would pre-approve {', '.join(servers)}", servers=servers)
             checks.append(project_servers)
 
@@ -237,6 +257,44 @@ class ClaudeCarabiner(Carabiner):
                 except Exception as e:  # noqa: BLE001
                     return let_go("bookmark", "belay on.", "margin /health", f"{conn.base_url}: {e}")
             checks.append(margin_answers)
+
+        # presence: only on a box that names a kitchen
+        if cfg is not None and cfg.kitchen:
+            def presence_hooks() -> Check:
+                try:
+                    data = settings.load(settings_file)
+                except settings.SettingsError as e:
+                    return let_go("presence", "on belay?", "hooks", str(e))
+                hooks = data.get("hooks") if isinstance(data.get("hooks"), dict) else {}
+                missing = []
+                for which, event in _presence.EVENTS.items():
+                    cmds = [str(h.get("command", "")) for g in (hooks.get(event) or []) if isinstance(g, dict)
+                            for h in (g.get("hooks") or []) if isinstance(h, dict)]
+                    if not any(_presence.marker_in(which, c) for c in cmds):
+                        missing.append(event)
+                if missing:
+                    return let_go("presence", "on belay?", "hooks",
+                                  f"the config names a kitchen and {' and '.join(missing)} has no presence hook: "
+                                  f"kbh claude presence install")
+                if not cfg.partner():
+                    return let_go("presence", "on belay?", "hooks", "no `partner:` under `kitchen:`: the hooks say nothing")
+                return held("presence", "on belay?", "hooks", f"SessionStart and SessionEnd, as {cfg.partner()}")
+            checks.append(presence_hooks)
+
+            def kitchen_answers() -> Check:
+                conn = read_connection(cfg.kitchen_connection())
+                token = conn.resolve_token()
+                req = urllib.request.Request(conn.base_url + "/health")
+                if token:
+                    req.add_header("Authorization", f"Bearer {token}")
+                try:
+                    with urllib.request.urlopen(req, timeout=5) as r:
+                        return held("presence", "belay on.", "kitchen /health", f"{conn.base_url} answered {r.status}")
+                except urllib.error.HTTPError as e:
+                    return let_go("presence", "belay on.", "kitchen /health", f"HTTP {e.code} from {conn.base_url}")
+                except Exception as e:  # noqa: BLE001
+                    return let_go("presence", "belay on.", "kitchen /health", f"{conn.base_url}: {e}")
+            checks.append(kitchen_answers)
 
         checks.append(lambda: skipped("due", "on belay?", "channel", "Claude Code has no channel into a live session"))
         return checks

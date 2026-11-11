@@ -46,13 +46,13 @@ def test_install_pushes_config_framing_and_runs_hooks_and_custom_adds_a_verb(tmp
     into.mkdir()
     _custom_tree(into / "custom", "mark")                      # the box's own custom/, already there
     rc = cli.main(["claude", "install", "--into", str(into), "--project", str(tmp_path), "--python", "/v/py",
-                   "--server", "wren-workbench=workbench.yaml", "--bookmark", "margin.yaml"])
+                   "--server", "ada-workbench=workbench.yaml", "--bookmark", "margin.yaml"])
     out = capsys.readouterr().out
     assert rc == 0, out
     assert (into / "claude.yaml").exists() and (into / "framing.md").exists()
     yaml_text = (into / "claude.yaml").read_text(encoding="utf-8")
     assert "how the Claude Code carabiner rolls on THIS box" in yaml_text, "the config.yaml template, not a Python string"
-    assert "  wren-workbench: workbench.yaml" in yaml_text and "python: /v/py" in yaml_text
+    assert "  ada-workbench: workbench.yaml" in yaml_text and "python: /v/py" in yaml_text
     assert (into / "mark-pre").read_text() == "claude" and (into / "mark-post").read_text().endswith("claude.yaml")
     assert "pre_install/10_mark.py: ok - pre ran" in out and "post_install/10_mark.py: ok - post ran" in out
 
@@ -139,8 +139,8 @@ def test_a_tricks_pack_layers_custom_onto_an_installed_carabiner(tmp_path):
     (tricks / "python").mkdir(parents=True)
     (tricks / "python" / "trick.py").write_text("VERBS = {'trick': lambda c, a: (print('tricked'), 0)[1]}\n", encoding="utf-8")
     env = dict(os.environ, KBH_DIST=str(tmp_path / "dist"))
-    pack = _build(["--tricks", "wren-tricks", "--with-custom", str(tricks)], env)
-    assert pack.endswith("wren-tricks.kbh")
+    pack = _build(["--tricks", "ada-tricks", "--with-custom", str(tricks)], env)
+    assert pack.endswith("ada-tricks.kbh")
     listed = subprocess.run([sys.executable, pack, "list"], capture_output=True, text=True)
     assert listed.stdout.strip() == "", "a tricks pack carries no carabiner"
     clip = tmp_path / "clip"; clip.mkdir()

@@ -20,12 +20,12 @@ connections: {connections}
 # model will see -> a ROUTE. The Workbench alone is the single-door shape.
 # A route is the url and the token dropped in here (the service is on
 # another box; nothing copied from it):
-#   wren-workbench:
+#   ada-workbench:
 #     url: http://nuc:7255
 #     bearer_token: "..."            # or bearer_token_keyring: "svc/user" - NOT bearer_token_env:
 #                                    # Codex clears the helper's environment, so the variable never reaches it
 # or a connection file in `connections` (the service's own config works):
-#   wren-workbench: workbench.yaml
+#   ada-workbench: workbench.yaml
 servers:
 {servers}
 # Margin's bookmark: a route or a file. A wake puts it in the message; `kbh codex

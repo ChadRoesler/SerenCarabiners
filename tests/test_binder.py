@@ -95,6 +95,6 @@ def test_the_cli_lists_carabiners_and_their_verbs(capsys):
     assert "claude" in out and "register, wake, bookmark" in out and "due" not in out.split("claude", 1)[1].split("\n")[0]
     assert cli.main(["claude", "manifest"]) == 0
     m = json.loads(capsys.readouterr().out)
-    assert m["verbs"] == {"register": True, "wake": True, "bookmark": True, "due": False}
+    assert m["verbs"] == {"register": True, "wake": True, "bookmark": True, "due": False, "presence": True}
     assert cli.main(["nope", "wake"]) == 64
     assert cli.main(["claude", "due"]) == 3, "unsupported says so, exit 3"

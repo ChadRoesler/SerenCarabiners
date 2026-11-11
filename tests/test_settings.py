@@ -27,7 +27,7 @@ def clipped(tmp_path, capsys):
     into = tmp_path / "kbh"
     proj = tmp_path / "proj"; proj.mkdir()
     assert cli.main(["claude", "init", "--into", str(into), "--project", str(proj), "--python", "/v/py",
-                     "--server", "wren-workbench=workbench.yaml"]) == 0
+                     "--server", "adaworkbench=workbench.yaml"]) == 0
     y = into / "claude.yaml"
     y.write_text(y.read_text(encoding="utf-8").replace(
         'bookmark: ""', 'bookmark:\n  url: http://nuc:7251\n  bearer_token: SECRET-margin-token'), encoding="utf-8")
@@ -61,10 +61,10 @@ def test_a_set_adds_a_key_to_its_block_or_a_new_block_at_the_end():
 
 def test_a_block_list_is_replaced_by_one_comma_line_both_readers_read():
     text = "session:\n  allowed_tools:\n    - Read\n    - Bash(git:*)\n  permission_mode: plan\n"
-    out = yamledit.set(text, "session.allowed_tools", ["mcp__wren-workbench__*", "Bash(git status:*)"])
+    out = yamledit.set(text, "session.allowed_tools", ["mcp__ada-workbench__*", "Bash(git status:*)"])
     assert "    - Read" not in out and "  permission_mode: plan" in out
     by_hand = config.HarnessConfig(session=config._two_levels_by_hand(out)["session"])
-    assert by_hand.session_allowed_tools() == ["mcp__wren-workbench__*", "Bash(git status:*)"]
+    assert by_hand.session_allowed_tools() == ["mcp__ada-workbench__*", "Bash(git status:*)"]
 
 
 def test_unset_takes_the_key_and_an_emptied_block_with_it():
@@ -150,7 +150,7 @@ def test_show_says_how_a_token_is_kept_and_never_the_token(clipped, capsys):
     assert "python" not in by_key and "servers" not in by_key, "how it was clipped on is not a form's business"
     assert by_key["wake.timeout_seconds"]["value"] == 900 and "Nobody is in the room" in by_key["framing"]["value"]
     assert "bypassPermissions" not in [c["value"] for c in by_key["session.permission_mode"]["choices"]]
-    assert {"value": "mcp__wren-workbench__*", "label": "Seren's tools (wren-workbench)"} in by_key["session.allowed_tools"]["suggestions"]
+    assert {"value": "mcp__ada-workbench__*", "label": "Seren's tools (ada-workbench)"} in by_key["session.allowed_tools"]["suggestions"]
     assert by_key["session.model"]["free_text"] and any(c["value"] == "claude-haiku-5-5" for c in by_key["session.model"]["choices"])
 
 
@@ -161,7 +161,7 @@ def test_no_yaml_on_this_box_is_a_json_answer_not_a_traceback(tmp_path, capsys):
 
 def test_a_wake_runs_on_the_boxes_model(clipped, own_settings, fake_claude, tmp_path, capsys):
     """The case it was built for: Haiku with a bare note for one box's hippocampus."""
-    json.dump({"mcpServers": {"wren-workbench": {"type": "http", "url": "http://nuc:7255/mcp"}}, "projects": {}},
+    json.dump({"mcpServers": {"ada-workbench": {"type": "http", "url": "http://nuc:7255/mcp"}}, "projects": {}},
               open(own_settings, "w"))
     home_bin = tmp_path / "home" / ".local" / "bin"; home_bin.mkdir(parents=True)
     shutil.copy(fake_claude.path, home_bin / os.path.basename(fake_claude.path))
@@ -242,7 +242,7 @@ def test_a_wake_note_that_cannot_be_written_leaves_the_yaml_alone(clipped, capsy
 
 def test_a_wake_gives_up_after_the_boxes_timeout(clipped, own_settings, fake_claude, tmp_path, capsys, monkeypatch):
     import subprocess
-    json.dump({"mcpServers": {"wren-workbench": {"type": "http", "url": "http://nuc:7255/mcp"}}, "projects": {}},
+    json.dump({"mcpServers": {"ada-workbench": {"type": "http", "url": "http://nuc:7255/mcp"}}, "projects": {}},
               open(own_settings, "w"))
     home_bin = tmp_path / "home" / ".local" / "bin"; home_bin.mkdir(parents=True)
     shutil.copy(fake_claude.path, home_bin / os.path.basename(fake_claude.path))

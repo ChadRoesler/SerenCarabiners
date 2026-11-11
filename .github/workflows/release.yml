@@ -99,8 +99,8 @@ jobs:
             echo
             echo '```bash'
             echo "curl -LO https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/claude.kbh"
-            echo "KBH_TOKEN_WREN_WORKBENCH=... python3 claude.kbh claude install --project ~/work \\"
-            echo "    --server wren-workbench=http://brain-box:7255 --bookmark http://brain-box:7251"
+            echo "KBH_TOKEN_ADA_WORKBENCH=... python3 claude.kbh claude install --project ~/work \\"
+            echo "    --server ada-workbench=http://brain-box:7255 --bookmark http://brain-box:7251"
             echo "python3 claude.kbh claude belay"
             echo '```'
             echo

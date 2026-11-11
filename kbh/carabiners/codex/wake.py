@@ -194,6 +194,13 @@ def run(argv: List[str]) -> int:
         print(f"no MCP servers are enabled in {config} (or {project}/.codex/config.toml): a wake would start the "
               f"model without its memory. kbh codex register first.", file=sys.stderr)
         return 2
+    if cfg and cfg.servers:
+        registered, servers = servers, cfg.wake_servers(servers)
+        if not servers:
+            print(f"{cfg.path} lists {', '.join(cfg.servers)} under `servers:` and none of them is registered "
+                  f"({', '.join(registered)} {'is' if len(registered) == 1 else 'are'}): a wake approves only the "
+                  f"servers the yaml names. kbh codex register apply.", file=sys.stderr)
+            return 2
     cwd = os.path.abspath(os.path.expanduser(project))
     sandbox = _arg(argv, "--sandbox") or ""
 

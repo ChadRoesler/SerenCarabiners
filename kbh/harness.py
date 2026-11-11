@@ -19,7 +19,7 @@ from typing import Dict, List, Optional
 
 from . import belay
 
-VERBS = ("register", "wake", "bookmark", "due")
+VERBS = ("register", "wake", "bookmark", "due", "presence")
 
 
 def self_command(python: Optional[str] = None) -> List[str]:
@@ -57,6 +57,9 @@ class Carabiner:
 
     def due(self, argv: List[str]) -> int:
         return self._unsupported("due")
+
+    def presence(self, argv: List[str]) -> int:
+        return self._unsupported("presence")
 
     def headers(self, argv: List[str]) -> int:
         """The headersHelper entry: print the Authorization header for a
@@ -115,6 +118,10 @@ class Carabiner:
 
     def config(self, argv: List[str]) -> int:
         from .configure import run
+        return run(self, argv)
+
+    def route(self, argv: List[str]) -> int:
+        from .route import run
         return run(self, argv)
 
     # ── init: the yaml that says how this carabiner rolls here ──

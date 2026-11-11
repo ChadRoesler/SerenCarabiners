@@ -8,14 +8,14 @@ bearer - a URL and a token (or a pointer to one). It has three homes:
     another box: drop in the uri and the token):
 
         servers:
-          wren-workbench:
+          ada-workbench:
             url: http://nuc:7255
             bearer_token: "..."          # or bearer_token_env / bearer_token_keyring
         bookmark:
           url: http://nuc:7251
-          bearer_token_env: WREN_MARGIN_TOKEN
+          bearer_token_env: ADA_MARGIN_TOKEN
 
-    and is referred to as `<that yaml>#wren-workbench` (or `#bookmark`) by the
+    and is referred to as `<that yaml>#ada-workbench` (or `#bookmark`) by the
     harness's headers helper and hooks, so nothing is copied anywhere.
 
   - a CONNECTION FILE: a `server:` block, which a service's own full config is
@@ -184,7 +184,8 @@ def read_connection(ref: str) -> Connection:
 
         <file>            a connection file (a `server:` block)
         <yaml>#<name>     a route inline in a carabiner's yaml: servers.<name>,
-                          or its bookmark when <name> is "bookmark"
+                          its bookmark when <name> is "bookmark", its kitchen
+                          when <name> is "kitchen"
 
     Raises (never a silent default) when it cannot be read: a connection on
     defaults is a 401 later, with nothing in the log to say why."""
@@ -194,10 +195,14 @@ def read_connection(ref: str) -> Connection:
         from .config import load                              # lazy: config imports this module
         cfg = load(path)
         route = cfg.bookmark if name == "bookmark" else cfg.servers.get(name)
+        if route is None and name == "kitchen":
+            route = cfg.kitchen
         if route is None or route == "":
-            raise KeyError(f"{path} has no server or bookmark named '{name}'")
+            raise KeyError(f"{path} has no server, bookmark or kitchen named '{name}'")
         if isinstance(route, dict):
             return connection_from_route(route, path=ref)
+        if name == "kitchen" and name not in cfg.servers:
+            return read_connection(cfg.kitchen_connection())  # a file after all
         return read_connection(cfg.connection(name))      # a file after all
     data = _read_yaml(ref)                                   # OSError if missing: on purpose
     server = data.get("server") if isinstance(data.get("server"), dict) else {}

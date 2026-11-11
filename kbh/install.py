@@ -30,7 +30,7 @@ def _opt(argv: List[str], flag: str, default: str = "") -> str:
 
 def token_env_for(name: str) -> str:
     """KBH_TOKEN_<NAME>: where a token for an inline route reaches install -
-    the environment, never the command line. wren-workbench -> KBH_TOKEN_WREN_WORKBENCH."""
+    the environment, never the command line. ada-workbench -> KBH_TOKEN_ADA_WORKBENCH."""
     import re
     return "KBH_TOKEN_" + re.sub(r"[^A-Za-z0-9]", "_", name).upper()
 

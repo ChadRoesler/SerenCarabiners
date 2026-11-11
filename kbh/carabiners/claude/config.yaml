@@ -21,15 +21,25 @@ connections: {connections}
 # model will see -> a ROUTE. The Workbench alone is the single-door shape.
 # A route is the url and the token dropped in here (the service is on
 # another box; nothing copied from it):
-#   wren-workbench:
+#   ada-workbench:
 #     url: http://nuc:7255
 #     bearer_token: "..."            # or bearer_token_env: NAME / bearer_token_keyring: "svc/user"
 # or a connection file in `connections` (the service's own config works):
-#   wren-workbench: workbench.yaml
+#   ada-workbench: workbench.yaml
 servers:
 {servers}
 # Margin, for the bookmark hook at session start: a route or a file. Blank = no hook.
 bookmark: {bookmark}
+
+# The kitchen, for `kbh claude presence install`: every session you open tells it
+# "I am here" (the session id, the folder, this box) and "I am gone", so each
+# has a magnet from its first minute and is told which hand it is. Leave it out
+# on a box with no kitchen.
+#   kitchen:
+#     url: http://nuc:7431
+#     bearer_token: "..."              # or bearer_token_env / bearer_token_keyring; none on loopback
+#     partner: ada                    # whose magnets these are
+#     hand: carabiner                  # optional: pin it; blank lets the kitchen name it from the folder
 
 # The text a woken session is given first: who it is, where its memory is,
 # when to stop. A file beside this one, yours to edit; blank = the
@@ -45,6 +55,6 @@ wake:
 # settings decide. One rule per item (or comma separated on one line):
 #   session:
 #     permission_mode: acceptEdits     # manual, acceptEdits, auto, plan, dontAsk, or bypassPermissions
-#     allowed_tools: "mcp__wren-workbench__*, Read"
+#     allowed_tools: "mcp__ada-workbench__*, Read"
 #     model: claude-haiku-5-5          # what a wake runs on; blank = Claude Code's own default
 # `kbh claude config` shows and changes these (and Lodestar's Rack does it for you).

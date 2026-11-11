@@ -13,11 +13,11 @@ run by the harness when it connects. The connection file is the service's
     kbh claude register add NAME --connection FILE [--dry]
     kbh claude register remove NAME
     kbh claude register list
-    kbh claude register bundle --from BUNDLE.json --into DIR [--prefix wren-] [--only workbench ...]
-    kbh claude register bundle --from-yamls DIR --host HOST --into DIR [--prefix wren-] [--only ...]
+    kbh claude register bundle --from BUNDLE.json --into DIR [--prefix ada-] [--only workbench ...]
+    kbh claude register bundle --from-yamls DIR --host HOST --into DIR [--prefix ada-] [--only ...]
 
 A BUNDLE is how the brain box's tokens reach the harness box: JSON,
-{"instance": "wren", "services": {"workbench": {"host": "nuc", "port": 7255,
+{"instance": "ada", "services": {"workbench": {"host": "nuc", "port": 7255,
 "bearer_token": "..."}}} - or a folder of the brain box's service
 yamls (--from-yamls), each cut to its server block with --host put in for the
 bind address. Either way: one connection file per service into --into, and
@@ -143,7 +143,7 @@ def _bundle_connections(argv: List[str]) -> Dict[str, Connection]:
 def bundle(argv: List[str], python: Optional[str] = None) -> int:
     if "--into" not in argv:
         print("usage: kbh claude register bundle (--from BUNDLE.json | --from-yamls DIR --host HOST) --into DIR "
-              "[--prefix wren-] [--only NAME ...] [--dry]", file=sys.stderr)
+              "[--prefix ada-] [--only NAME ...] [--dry]", file=sys.stderr)
         return 64
     into = os.path.expanduser(argv[argv.index("--into") + 1])
     prefix = argv[argv.index("--prefix") + 1] if "--prefix" in argv else ""
