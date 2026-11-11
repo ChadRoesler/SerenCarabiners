@@ -1,6 +1,6 @@
 """
 Build a .kbh: one zip per carabiner, named for its harness, runnable with any
-Python 3.8+.
+Python 3.10+.
 
     python build.py                       -> dist/claude.kbh (one per shipped carabiner)
     python build.py claude                -> dist/claude.kbh

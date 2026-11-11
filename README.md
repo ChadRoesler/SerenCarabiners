@@ -36,7 +36,7 @@ python claude.kbh claude wake --project ~/work --yaml 2      # the lines for an 
 python claude.kbh claude belay --project ~/work --connection ~/.seren/nuc/workbench.yaml --margin ~/.seren/nuc/margin.yaml --dry-wake
 ```
 
-A `.kbh` is a Python zipapp: Python 3.8+ and nothing installed. Standard
+A `.kbh` is a Python zipapp: Python 3.10+ and nothing installed. Standard
 library only, on purpose; `seren_meninges` and PyYAML are used when present.
 
 **A connection is a route**: a url and a token, dropped straight into the

@@ -7,7 +7,7 @@ name = "seren-carabiners"
 description = "Carabiners (.kbh): the packages that clip the Seren system onto a model's harness - Claude Code first."
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dynamic = ["version"]
 # Standard library only, on purpose: a harness box needs Python and nothing
 # else. seren_meninges and PyYAML are used when present, never required.
