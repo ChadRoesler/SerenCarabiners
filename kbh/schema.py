@@ -20,12 +20,27 @@ two levels at most, like the yaml). Kinds:
     note     prose in a file the yaml points at (the framing): the value is
              the file's text
     text     one line
+    add      not a setting: the place a form offers "add a setting" (below)
 
 `applies` says when a change counts: next_session, next_wake, or now.
 
 What is NOT here: python, connections, servers and the bookmark. Those are
 how the carabiner was clipped on (Starwright's card, `install`), and a token
 must never travel through a form.
+
+SETTINGS ADDED ON A BOX (design note, 13 Nov 2026). A carabiner's own fields
+are code, so a new one waits on a new .kbh. What a person adds from the Rack does not: it is a name
+and one line of text under `custom:` in the yaml,
+
+    custom:
+      talk_model: claude-haiku-5-5
+
+listed back as a field like any other (custom true, so a form can offer to
+take it away), and read by whatever wants it with
+`kbh <carabiner> config get custom.talk_model`. The carabiner checks the name
+and that the value is one line; what the value MEANS is the reader's, so a
+reader that puts it on a command line checks it first. Still no tokens: a
+value is shown back to every form that asks.
 """
 from __future__ import annotations
 
@@ -35,9 +50,12 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-KINDS = ("choice", "tools", "folder", "number", "note", "text")
+KINDS = ("choice", "tools", "folder", "number", "note", "text", "add")
 APPLIES = ("next_session", "next_wake", "now")
 MAX_NOTE = 64 * 1024
+CUSTOM = "custom"                          # the yaml block settings added on a box live under
+CUSTOM_NAME = r"[a-z][a-z0-9_]{0,39}"      # a name a yaml key, a form and a command line can all carry
+MAX_CUSTOM = 500
 
 
 @dataclass
@@ -58,6 +76,7 @@ class Field:
     pattern: str = ""              # free text must match it whole (it may end up on a command line)
     required: bool = False         # no default to go back to: cannot be unset
     applies: str = "next_session"
+    custom: bool = False           # added on this box, not one of the carabiner's own: unset takes it away
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -79,6 +98,32 @@ def base_fields() -> List[Field]:
               help="What it reads first when Seren wakes it: who it is, where its memory lives, when to stop. "
                    "{message} is where the wake's own words go; a note that is only {message} sends them bare."),
     ]
+
+
+def custom_name(key: str) -> Optional[str]:
+    """The name in `custom.<name>`, or None for any other key."""
+    head, _, name = str(key or "").partition(".")
+    return name if head == CUSTOM and re.fullmatch(CUSTOM_NAME, name) else None
+
+
+def custom_field(name: str) -> Field:
+    return Field(f"{CUSTOM}.{name}", name.replace("_", " ").capitalize(), kind="text", applies="now", custom=True,
+                 help=f"Added on this box. Whatever wants it reads it with: config get {CUSTOM}.{name}")
+
+
+def custom_fields(data: Dict[str, Any]) -> List[Field]:
+    """The settings added on this box, as the yaml has them."""
+    block = data.get(CUSTOM)
+    names = [str(k) for k in block] if isinstance(block, dict) else []
+    return [custom_field(n) for n in names if re.fullmatch(CUSTOM_NAME, n)]
+
+
+def add_field() -> Field:
+    """Where a form offers "add a setting": a name (`pattern`) and a value,
+    sent as a change to `custom.<name>`. Not a setting itself."""
+    return Field(CUSTOM, "Add a setting", kind="add", pattern=CUSTOM_NAME, applies="now",
+                 help="A name and one line of text, kept on this box. Lowercase letters, digits and _ in the "
+                      "name. Never a token or a password: it is shown back here.")
 
 
 def split_tools(value: Any) -> List[str]:
@@ -131,8 +176,10 @@ def validate(f: Field, value: Any, expert: bool = False) -> Tuple[Any, str]:
             return None, f"it has to keep {f.must_hold}, or what the wake says is lost"
         return v, ""
     v = "" if value is None else str(value)
-    if "\n" in v:
+    if "\n" in v or "\r" in v:
         return None, "one line only"
+    if f.custom and len(v) > MAX_CUSTOM:
+        return None, f"longer than {MAX_CUSTOM} characters"
     return v, ""
 
 

@@ -8,6 +8,9 @@ carabiner says it has (kbh.schema), in its yaml beside the .kbh.
     kbh <c> config unset KEY ... [--json]
     kbh <c> config apply                    a change as JSON, answered as JSON
 
+A KEY that is `custom.<name>` is a setting added on this box (kbh.schema):
+set makes it, unset takes it away, get and show read it.
+
 `apply` is what the box's Observatory runs for Lodestar's Rack: the request
 ({"values": {...}, "unset": [...], "expert": false}, the shape of
 seren_sinew.carabiners.SettingsRequest) comes in KBH_SETTINGS_REQUEST, or on
@@ -65,6 +68,10 @@ def manifest(c, cfg: config.HarnessConfig) -> Dict[str, Any]:
         else:
             d["value"] = schema.current(f, data)
         fields.append(d)
+    for f in schema.custom_fields(data):               # what was added on this box, then where to add more
+        v = schema.current(f, data)
+        fields.append({**f.to_dict(), "value": "" if v is None else str(v)})
+    fields.append(schema.add_field().to_dict())
     connections = [{"name": name, "where": _where(route), "token": _token_kind(route)}
                    for name, route in cfg.servers.items()]
     if cfg.bookmark:
@@ -96,6 +103,10 @@ def change(c, cfg: config.HarnessConfig, values: Dict[str, Any], unset: List[str
            expert: bool = False, run_belay: bool = True) -> Dict[str, Any]:
     """Check every value against the schema, then write them all or none."""
     fields = {f.key: f for f in c.settings_fields(cfg)}
+    for key in list(values or {}) + list(unset or []):   # a setting added on this box: any well-formed name
+        name = schema.custom_name(key)
+        if name and key not in fields:
+            fields[key] = schema.custom_field(name)
     refused: Dict[str, str] = {}
     clean: Dict[str, Any] = {}
     for key, value in (values or {}).items():
@@ -193,6 +204,8 @@ def run(c, argv: List[str]) -> int:
             return 0
         print(f"{c.display} on this box ({cfg.path})")
         for f in m["fields"]:
+            if f["kind"] == "add":
+                continue
             value = f["value"]
             shown = f"{len(value.splitlines())} lines" if f["kind"] == "note" else (
                 ", ".join(value) if isinstance(value, list) else ("" if value is None else str(value)))
@@ -206,6 +219,8 @@ def run(c, argv: List[str]) -> int:
             print(f"usage: kbh {c.name} config get KEY", file=sys.stderr)
             return 64
         f = next((x for x in c.settings_fields(cfg) if x.key == words[0]), None)
+        if f is None and schema.custom_name(words[0]):
+            f = schema.custom_field(schema.custom_name(words[0]))
         if f is None:
             print(f"not a setting the {c.display} carabiner has: {words[0]}", file=sys.stderr)
             return 1

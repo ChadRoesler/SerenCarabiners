@@ -268,3 +268,50 @@ def test_checking_a_change_never_asks_anthropic(clipped, capsys, monkeypatch):
     assert calls == [], "set/unset/apply check against the schema, not Anthropic's list"
     assert cli.main(["claude", "config", "show", "--json", "--config", str(clipped)]) == 0
     assert calls == [1], "drawing the form is when the list is looked up"
+
+
+# -- settings added on a box (13 Nov 2026) --------------------------------
+def test_a_setting_added_on_a_box_is_written_listed_read_and_taken_away(clipped, capsys, monkeypatch):
+    yaml = str(clipped)
+    before = clipped.read_text(encoding="utf-8")
+    monkeypatch.setenv("KBH_SETTINGS_REQUEST", json.dumps({"values": {"custom.talk_model": "claude-haiku-5-5"}}))
+    rc, out, _ = _run(capsys, "claude", "config", "apply", "--config", yaml)
+    res = json.loads(out)
+    assert rc == 0 and res["applied"] == ["custom.talk_model"] and res["applies"] == {"custom.talk_model": "now"}
+    after = clipped.read_text(encoding="utf-8")
+    assert after.startswith(before.rstrip("\n")) and after.rstrip().endswith("custom:\n  talk_model: claude-haiku-5-5"), \
+        "a new block at the end, and not a word of the file above it changed"
+    assert config.load(yaml).extra["custom"] == {"talk_model": "claude-haiku-5-5"}
+
+    rc, out, _ = _run(capsys, "claude", "config", "show", "--json", "--config", yaml)
+    fields = json.loads(out)["fields"]
+    mine = next(f for f in fields if f["key"] == "custom.talk_model")
+    assert mine["custom"] and mine["kind"] == "text" and mine["value"] == "claude-haiku-5-5" and mine["label"] == "Talk model"
+    assert fields[-1]["kind"] == "add" and fields[-1]["key"] == "custom" and fields[-1]["pattern"], \
+        "the form is told where a setting can be added, and what a name looks like"
+    assert not any(f["custom"] for f in fields if f["key"] != "custom.talk_model")
+
+    rc, out, _ = _run(capsys, "claude", "config", "get", "custom.talk_model", "--config", yaml)
+    assert rc == 0 and out.strip() == "claude-haiku-5-5"
+    rc, out, _ = _run(capsys, "claude", "config", "show", "--config", yaml)
+    assert "custom.talk_model" in out and "Add a setting" not in out
+
+    assert cli.main(["claude", "config", "unset", "custom.talk_model", "--config", yaml]) == 0
+    capsys.readouterr()
+    assert "custom" not in clipped.read_text(encoding="utf-8"), "the block goes with its last key"
+    rc, out, _ = _run(capsys, "claude", "config", "get", "custom.talk_model", "--config", yaml)
+    assert rc == 0 and out.strip() == ""
+
+
+def test_a_setting_added_on_a_box_has_a_plain_name_and_one_line(clipped, capsys, monkeypatch):
+    yaml = str(clipped)
+    before = clipped.read_text(encoding="utf-8")
+    bad = {"custom.Talk-Model": "x", "custom.": "x", "custom": "x", "custom.a.b": "x", "custom.two_lines": "a\nb",
+           "custom.long": "x" * 501, "custom.fine": "kept out with the rest"}
+    monkeypatch.setenv("KBH_SETTINGS_REQUEST", json.dumps({"values": bad}))
+    rc, out, _ = _run(capsys, "claude", "config", "apply", "--config", yaml)
+    refused = json.loads(out)["refused"]
+    assert rc == 1 and set(refused) == set(bad) - {"custom.fine"}
+    assert refused["custom.two_lines"] == "one line only" and "500" in refused["custom.long"]
+    assert "not a setting" in refused["custom.Talk-Model"] and "not a setting" in refused["custom"]
+    assert clipped.read_text(encoding="utf-8") == before, "one refusal and nothing is written, the good one included"
