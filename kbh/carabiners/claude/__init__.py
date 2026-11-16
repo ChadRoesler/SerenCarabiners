@@ -278,7 +278,7 @@ class ClaudeCarabiner(Carabiner):
                                   f"kbh claude presence install")
                 if not cfg.partner():
                     return let_go("presence", "on belay?", "hooks", "no `partner:` under `kitchen:`: the hooks say nothing")
-                return held("presence", "on belay?", "hooks", f"SessionStart and SessionEnd, as {cfg.partner()}")
+                return held("presence", "on belay?", "hooks", f"SessionStart, UserPromptSubmit and SessionEnd, as {cfg.partner()}")
             checks.append(presence_hooks)
 
             def kitchen_answers() -> Check:

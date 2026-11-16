@@ -99,6 +99,25 @@ def test_an_end_passes_the_reason_through_and_says_nothing(tmp_path, kitchen, mo
     assert _hook(monkeypatch, capsys, "end", y)[0] == 0 and len(kitchen.got) == n
 
 
+def test_a_touch_on_every_prompt_says_only_news(tmp_path, kitchen, monkeypatch, capsys):
+    """Every prompt tells the kitchen the session is still here; the session hears back only when it has
+    something to learn (taken over while quiet), and never a word about a kitchen that is down."""
+    y = _clip(tmp_path, capsys, kitchen)
+    rc, out = _hook(monkeypatch, capsys, "touch", y, session_id="abc-123", prompt="hi", cwd="x")
+    assert rc == 0 and out == ""
+    assert kitchen.got[-1][1] == {"event": "touch", "partner": "ada", "harness": "claude", "session": "abc-123"}
+    kitchen.say = "While you were away, ada·carabiner-2 took seren-carabiner."
+    assert _hook(monkeypatch, capsys, "touch", y, session_id="abc-123")[1].strip() == kitchen.say
+    kitchen.say = ""
+    for mode in ("old", "broken"):
+        kitchen.mode = mode
+        assert _hook(monkeypatch, capsys, "touch", y, session_id="abc-123") == (0, "")
+    kitchen.mode = ""
+    text = open(y, encoding="utf-8").read().replace(f":{kitchen.server_address[1]}", ":9")
+    open(y, "w", encoding="utf-8").write(text)
+    assert _hook(monkeypatch, capsys, "touch", y, session_id="abc-123") == (0, ""), "a kitchen that is gone is not news"
+
+
 def test_it_never_fails_or_stalls_a_session(tmp_path, kitchen, monkeypatch, capsys):
     ev = dict(session_id="abc", cwd="x", source="startup")
     # no kitchen in the yaml (a corpo box): silent
@@ -142,6 +161,8 @@ def test_install_adds_both_hooks_beside_the_bookmark_and_remove_takes_only_ours(
     end = [h["command"] for g in hooks["SessionEnd"] for h in g["hooks"]]
     assert len(start) == 2 and sum(presence.marker_in("start", c) for c in start) == 1
     assert len(end) == 1 and presence.marker_in("end", end[0]) and "kitchen-secret" not in end[0]
+    touch = [h["command"] for g in hooks["UserPromptSubmit"] for h in g["hooks"]]
+    assert len(touch) == 1 and presence.marker_in("touch", touch[0]) and "kitchen-secret" not in touch[0]
     capsys.readouterr()
 
     cli.main(["claude", "belay", "--config", y, "--json"])
@@ -150,7 +171,7 @@ def test_install_adds_both_hooks_beside_the_bookmark_and_remove_takes_only_ours(
 
     assert cli.main(["claude", "presence", "remove"]) == 0
     hooks = json.load(open(settings_file))["hooks"]
-    assert "SessionEnd" not in hooks and len(hooks["SessionStart"]) == 1, "the bookmark hook is still there"
+    assert "SessionEnd" not in hooks and "UserPromptSubmit" not in hooks and len(hooks["SessionStart"]) == 1, "the bookmark hook is still there"
     capsys.readouterr()
     cli.main(["claude", "belay", "--config", y, "--json"])
     by = {(c["verb"], c["name"]): c for c in json.loads(capsys.readouterr().out)["checks"]}

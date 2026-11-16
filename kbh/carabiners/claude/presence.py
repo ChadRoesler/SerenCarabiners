@@ -1,5 +1,5 @@
 """
-presence - tell the house a session of this harness is here, and when it goes.
+presence - tell the house a session of this harness is here, still here, and when it goes.
 
 The kitchen keeps a magnet per hand: who is working where, and how to get
 back to them. Left to the model, the first minute is the step that gets
@@ -10,14 +10,26 @@ says it, not the model. Claude Code hands its SessionStart and SessionEnd
 hooks the session id and the folder on stdin; this passes them on.
 
     start   POST <kitchen>/api/sessions {"event": "start", partner, harness, session, cwd, box, source[, hand]}
+    touch   POST <kitchen>/api/sessions {"event": "touch", partner, harness, session[, hand]}   (every prompt)
     end     POST <kitchen>/api/sessions {"event": "end", partner, harness, session, reason[, hand]}
+
+STILL HERE (16 Nov 2026). A magnet's life runs on when its session was last
+seen, and a session that only works, never touching the kitchen, looked
+gone: grey mid-sentence, and after an hour its hand was free for the next
+tab in that folder to take over while it was still in the chair. So every
+prompt touches it (UserPromptSubmit). The touch also brings news: a session
+whose fridge or hand was taken over while it was quiet is told so, once,
+in the kitchen's words, which this prints into the session. Nothing else is
+ever printed on a touch: a prompt hook that chatters, or that complains
+about a kitchen that is down, is noise on every message.
 
 WHAT IT DOES NOT DECIDE. The hand is the kitchen's to name (it knows its
 fridges; a carabiner does not know that SerenCarabiners is "carabiner"), so
 none is sent unless the yaml pins one, and the answer says which it is.
 `source` and `reason` are Claude Code's own words, passed through as given:
-whether a /clear is an ending is the kitchen's call. A start never sticks a
-magnet to a fridge; holding a repo stays something a session chooses.
+whether a /clear is an ending is the kitchen's call, and so is sticking: a
+start in a folder that is a fridge's repo is stuck to it by the kitchen
+(16 Nov 2026), which knows its fridges and says so in its answer.
 
 A WOKEN SESSION SAYS NOTHING (SEREN_KBH_WAKE): housekeeping holds no repo.
 
@@ -26,7 +38,7 @@ without the route (404), a kitchen that is down - exit 0, at most one line.
 What `start` prints lands in the session, so it prints what the kitchen
 answers (`say`, else the label): the model is told which hand it is.
 
-    kbh claude presence start|end              the hooks (the event's JSON on stdin)
+    kbh claude presence start|touch|end        the hooks (the event's JSON on stdin)
     kbh claude presence install [--settings PATH] [--python P]
     kbh claude presence remove [--settings PATH]
 
@@ -53,12 +65,13 @@ from ...harness import self_command
 from ...tokens import read_connection
 from .common import quote_command, settings_path
 
-EVENTS = {"start": "SessionStart", "end": "SessionEnd"}
+EVENTS = {"start": "SessionStart", "touch": "UserPromptSubmit", "end": "SessionEnd"}
 # How each hook is recognised inside a settings file, whichever way it was quoted.
-MARKERS = {"start": ('presence" "start', "presence start"), "end": ('presence" "end', "presence end")}
+MARKERS = {"start": ('presence" "start', "presence start"), "touch": ('presence" "touch', "presence touch"),
+           "end": ('presence" "end', "presence end")}
 WAKE_ENV = "SEREN_KBH_WAKE"
 ROUTE = "/api/sessions"
-TIMEOUT = {"start": 4.0, "end": 2.0}          # a session never waits long on a kitchen
+TIMEOUT = {"start": 4.0, "touch": 1.5, "end": 2.0}   # a session never waits long on a kitchen; a prompt least of all
 
 
 def marker_in(which: str, command: str) -> bool:
@@ -88,7 +101,7 @@ def body_for(which: str, cfg, data: Dict[str, Any]) -> Dict[str, Any]:
         body["cwd"] = str(data.get("cwd") or os.getcwd())
         body["box"] = socket.gethostname()
         body["source"] = str(data.get("source") or "")
-    else:
+    elif which == "end":
         body["reason"] = str(data.get("reason") or "")
     hand = os.environ.get("SEREN_KITCHEN_HAND") or cfg.kitchen_hand()
     if hand:
@@ -141,16 +154,16 @@ def install(cfg, settings_file: str, python: Optional[str] = None) -> List[str]:
     read_connection(cfg.kitchen_connection())            # raises if unreadable: refuse to install a dead hook
     return [settings.set_hook(settings_file, EVENTS[w], _marker(w), hook_command(w, cfg.path, python),
                               handler={"timeout": int(TIMEOUT[w]) + 6})
-            for w in ("start", "end")]
+            for w in EVENTS]
 
 
 def remove(settings_file: str) -> List[str]:
-    return [settings.set_hook(settings_file, EVENTS[w], _marker(w), remove=True) for w in ("start", "end")]
+    return [settings.set_hook(settings_file, EVENTS[w], _marker(w), remove=True) for w in EVENTS]
 
 
 def run(argv: List[str]) -> int:
-    if not argv or argv[0] not in ("start", "end", "install", "remove"):
-        print("usage: kbh claude presence (start | end | install [--settings PATH] [--python P] | remove)"
+    if not argv or argv[0] not in ("start", "touch", "end", "install", "remove"):
+        print("usage: kbh claude presence (start | touch | end | install [--settings PATH] [--python P] | remove)"
               "  - the kitchen is the config's `kitchen:` (claude.yaml)", file=sys.stderr)
         return 64
     from ...config import load_for
@@ -174,6 +187,8 @@ def run(argv: List[str]) -> int:
                 print(said(answer))
             elif why:
                 print(f"(The kitchen was not told about this session: {why})")
+        elif which == "touch" and answer is not None and str(answer.get("say") or "").strip():
+            print(str(answer["say"]).strip())          # news (taken over), and only news
         return 0
     path = argv[argv.index("--settings") + 1] if "--settings" in argv else settings_path()
     try:
