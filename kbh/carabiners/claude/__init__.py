@@ -272,12 +272,24 @@ class ClaudeCarabiner(Carabiner):
                             for h in (g.get("hooks") or []) if isinstance(h, dict)]
                     if not any(_presence.marker_in(which, c) for c in cmds):
                         missing.append(event)
-                if missing:
+                # The "still here" touch (UserPromptSubmit, 16 Nov 2026) came after
+                # start and end: a box clipped before it has the two and not the
+                # touch, and only the new build can install it. Missing alone it
+                # is a magnet that greys in a quiet hour, not a broken clip, so it
+                # is said and not let go: held against it, `upgrade` rolled the
+                # build that brings it back on the box that needed it (17 Nov 2026).
+                touch_event = _presence.EVENTS.get("touch")
+                broken = [e for e in missing if e != touch_event]
+                if broken:
                     return let_go("presence", "on belay?", "hooks",
-                                  f"the config names a kitchen and {' and '.join(missing)} has no presence hook: "
+                                  f"the config names a kitchen and {' and '.join(broken)} has no presence hook: "
                                   f"kbh claude presence install")
                 if not cfg.partner():
                     return let_go("presence", "on belay?", "hooks", "no `partner:` under `kitchen:`: the hooks say nothing")
+                if missing:
+                    return held("presence", "on belay?", "hooks",
+                                f"SessionStart and SessionEnd, as {cfg.partner()}; no UserPromptSubmit touch yet, so a "
+                                f"quiet session's magnet greys: kbh claude presence install adds it")
                 return held("presence", "on belay?", "hooks", f"SessionStart, UserPromptSubmit and SessionEnd, as {cfg.partner()}")
             checks.append(presence_hooks)
 

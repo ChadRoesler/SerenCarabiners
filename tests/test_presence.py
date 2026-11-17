@@ -178,6 +178,30 @@ def test_install_adds_both_hooks_beside_the_bookmark_and_remove_takes_only_ours(
     assert by[("presence", "hooks")]["status"] == "LET GO" and "presence install" in by[("presence", "hooks")]["why"]
 
 
+def test_a_box_clipped_before_the_touch_still_holds_so_the_build_that_brings_it_can_land(tmp_path, kitchen, capsys):
+    """17 Nov 2026, the desktop: the old build installed start and end; the new
+    one wants the UserPromptSubmit touch too, and only the new one can install
+    it. Held against the box, `upgrade` rolled the new build back. Missing
+    alone, the touch is said, not let go; start or end missing still lets go."""
+    y = _clip(tmp_path, capsys, kitchen)
+    settings_file = os.environ["SEREN_CLAUDE_SETTINGS"]
+    assert cli.main(["claude", "presence", "install", "--config", y]) == 0
+    data = json.load(open(settings_file))
+    del data["hooks"]["UserPromptSubmit"]                       # what the old build left
+    json.dump(data, open(settings_file, "w"))
+    capsys.readouterr()
+    cli.main(["claude", "belay", "--config", y, "--json"])
+    by = {(c["verb"], c["name"]): c for c in json.loads(capsys.readouterr().out)["checks"]}
+    assert by[("presence", "hooks")]["status"] == "held"
+    assert "no UserPromptSubmit touch yet" in by[("presence", "hooks")]["why"] and "presence install" in by[("presence", "hooks")]["why"]
+    del data["hooks"]["SessionEnd"]
+    json.dump(data, open(settings_file, "w"))
+    cli.main(["claude", "belay", "--config", y, "--json"])
+    by = {(c["verb"], c["name"]): c for c in json.loads(capsys.readouterr().out)["checks"]}
+    assert by[("presence", "hooks")]["status"] == "LET GO" and "SessionEnd" in by[("presence", "hooks")]["why"]
+    assert "UserPromptSubmit" not in by[("presence", "hooks")]["why"], "only what is broken is named"
+
+
 def test_install_refuses_without_a_kitchen_or_a_partner_and_belay_is_silent_without_one(tmp_path, kitchen, capsys):
     bare = _clip(tmp_path / "a", capsys)
     assert cli.main(["claude", "presence", "install", "--config", bare]) == 64
