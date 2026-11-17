@@ -219,9 +219,11 @@ def run(argv: List[str]) -> int:
         message = raw if raw else sys.stdin.read()
         event = _arg(argv, "--event") or ""
         bookmark = ""
-        if cfg and cfg.bookmark and "--no-framing" not in argv and "--no-bookmark" not in argv:
+        if cfg and "--no-framing" not in argv and "--no-bookmark" not in argv:
+            # The piton's dedication and Margin's letter count (kbh.door); a
+            # box with no Margin still gets its dedication, a wake never the preface.
             from .bookmark import fetch
-            bookmark = fetch(cfg.connection(cfg.bookmark))
+            bookmark = fetch("", cfg, woken=True)
         text = (message.strip() + "\n" if "--no-framing" in argv
                 else frame(message, servers, event, framing_path=framing_path, bookmark=bookmark))
         codex = find_codex()

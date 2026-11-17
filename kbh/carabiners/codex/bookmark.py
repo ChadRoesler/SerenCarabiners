@@ -1,5 +1,9 @@
 """
-bookmark - Margin's bookmark in front of the model as a Codex session starts.
+bookmark - the bookmark in front of the model as a Codex session starts.
+
+Since 16 Nov 2026 the text is put together by kbh.door: the piton's
+dedication (and preface, where codex.yaml says `piton_preface: true`) and
+Margin's letter count, whatever of those the box has.
 
 Codex has SessionStart hooks, in the same shape as Claude Code's
 ($CODEX_HOME/hooks.json: {"hooks": {"SessionStart": [{matcher, hooks: [{type,
@@ -26,9 +30,7 @@ from __future__ import annotations
 
 import os
 import sys
-import urllib.error
-import urllib.request
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from ... import settings
 from ...harness import self_command
@@ -48,28 +50,20 @@ def _marker() -> str:
     return MARKERS[0] if os.name == "nt" else MARKERS[1]
 
 
-def fetch(connection_path: str, timeout: float = 5.0) -> str:
-    """The bookmark's text, or one line saying why not. Never raises."""
+def fetch(connection_path: str = "", cfg: Any = None, woken: bool = False) -> str:
+    """The bookmark's text (kbh.door: the piton's pages, Margin's letter
+    count), or lines saying what is missing. Never raises."""
+    from ...door import text
     try:
-        conn = read_connection(connection_path)
-        token = conn.resolve_token()
+        return text(cfg, "codex", margin=connection_path, woken=woken)
     except Exception as e:  # noqa: BLE001 - never block the session
-        return f"(Margin's bookmark is unavailable: cannot read {connection_path}: {type(e).__name__}: {e})"
-    req = urllib.request.Request(f"{conn.base_url}/bookmark?format=text")
-    if token:
-        req.add_header("Authorization", f"Bearer {token}")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            body = r.read().decode("utf-8", "replace").rstrip()
-    except urllib.error.HTTPError as e:
-        return (f"(Margin's bookmark is unavailable: HTTP {e.code} from {conn.base_url} - "
-                f"{'an older Margin without /bookmark?' if e.code == 404 else 'check the bearer'})")
-    except Exception as e:  # noqa: BLE001
-        return f"(Margin's bookmark is unavailable: {conn.base_url} did not answer: {e})"
-    return "Your bookmark, from Margin - picking up where you left off:\n\n" + body
+        return f"(The bookmark is unavailable: {type(e).__name__}: {e})"
 
 
-def hook_command(connection_path: str, python: Optional[str] = None) -> str:
+def hook_command(connection_path: str = "", python: Optional[str] = None, config_path: str = "") -> str:
+    if not connection_path:
+        return quote_command(self_command(python) + ["codex", "bookmark", "print", "--config",
+                                                     os.path.abspath(config_path)])
     ref = connection_path
     if "#" in ref:
         file, name = ref.rsplit("#", 1)
@@ -79,13 +73,16 @@ def hook_command(connection_path: str, python: Optional[str] = None) -> str:
     return quote_command(self_command(python) + ["codex", "bookmark", "print", ref])
 
 
-def install(connection_path: str, hooks_file: str, python: Optional[str] = None) -> str:
-    read_connection(connection_path)                     # raises if unreadable: refuse to install a dead hook
+def install(connection_path: str, hooks_file: str, python: Optional[str] = None, config_path: str = "") -> str:
+    if connection_path:
+        read_connection(connection_path)                 # raises if unreadable: refuse to install a dead hook
+    elif not config_path:
+        raise ValueError("a Margin connection or a config (for the piton alone) is needed")
     # Codex's SessionStart matcher filters on the source: a bookmark belongs
     # on startup and resume, not on clear, compact or fork.
-    said = settings.set_hook(hooks_file, EVENT, _marker(), hook_command(connection_path, python),
+    said = settings.set_hook(hooks_file, EVENT, _marker(), hook_command(connection_path, python, config_path),
                              group={"matcher": MATCHER},
-                             handler={"timeout": 15, "statusMessage": "Reading Margin's bookmark"})
+                             handler={"timeout": 15, "statusMessage": "Reading the bookmark"})
     return said + " - open codex once and trust it under /hooks; until then Codex skips it"
 
 
@@ -104,26 +101,27 @@ def run(argv: List[str]) -> int:
     try:
         cfg = load_for("codex", argv)
     except OSError as e:
+        if argv[0] == "print":                           # a hook must never fail the session
+            print(fetch("", None))
+            print(f"(codex.yaml did not read: {e})")
+            return 0
         print(f"cannot read the config: {e}", file=sys.stderr)
         return 1
     given = argv[1] if len(argv) > 1 and not argv[1].startswith("--") else ""
     connection = given or (cfg.connection(cfg.bookmark) if cfg and cfg.bookmark else "")
     path = argv[argv.index("--hooks") + 1] if "--hooks" in argv else hooks_path()
     if argv[0] == "print":
-        if not connection:
-            print("(Margin's bookmark is unavailable: no connection file given and no `bookmark:` in the config)")
-            return 0                                     # a hook must never fail the session
-        print(fetch(connection))
+        print(fetch(given, cfg))                         # never fails the session; the piton alone is fine
         return 0
     try:
         if argv[0] == "install":
-            if not connection:
-                print("usage: kbh codex bookmark install CONNECTION [--hooks PATH], or set `bookmark:` in codex.yaml",
-                      file=sys.stderr)
+            if not connection and cfg is None:
+                print("usage: kbh codex bookmark install CONNECTION [--hooks PATH], or set `bookmark:` in codex.yaml, "
+                      "or run it with --config so the hook shows the piton alone", file=sys.stderr)
                 return 64
             python = argv[argv.index("--python") + 1] if "--python" in argv else (cfg.python if cfg and cfg.python else None)
             try:
-                print(install(connection, path, python))
+                print(install(connection, path, python, config_path=cfg.path if cfg is not None else ""))
             except (OSError, ValueError) as e:
                 print(f"cannot read the connection file {connection}: {type(e).__name__}: {e}", file=sys.stderr)
                 return 1

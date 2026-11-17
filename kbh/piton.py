@@ -476,6 +476,8 @@ usage: kbh {c} piton                                   where it is, who writes w
        kbh {c} piton set dedication|preface [--why TEXT] [--file PATH] [--as self|operator]
                                               (the page from --file, else stdin)
        kbh {c} piton restore dedication|preface N [--why TEXT] [--as self|operator]
+       kbh {c} piton import [--from CONNECTION]      take both pages over from Margin with every
+                                              version, once (a page the piton has is never touched)
    --piton DIR and --config PATH as everywhere; --json on the bare form too."""
 
 # Set in the environment of a command run from inside a harness session: the
@@ -483,7 +485,7 @@ usage: kbh {c} piton                                   where it is, who writes w
 # a woken session has SEREN_KBH_WAKE. KBH_AS says it outright.
 SESSION_ENV = ("CLAUDECODE", "SEREN_KBH_WAKE")
 WHO = {"self": "the model", "operator": "you", "off": "nobody"}
-_VALUE_FLAGS = ("--why", "--file", "--as", "--history", "--piton", "--config")
+_VALUE_FLAGS = ("--why", "--file", "--as", "--history", "--piton", "--config", "--from")
 
 
 def who_is_writing(argv: List[str]) -> str:
@@ -495,7 +497,7 @@ def who_is_writing(argv: List[str]) -> str:
     return "self" if any(os.environ.get(v) for v in SESSION_ENV) else "operator"
 
 
-def _age(ts: Optional[float]) -> str:
+def age(ts: Optional[float]) -> str:
     if not ts:
         return ""
     s = max(0, int(time.time() - ts))
@@ -560,7 +562,7 @@ def run(carabiner: Any, argv: List[str]) -> int:
             if info["writer"] == "off":
                 state = "not shown"
             elif info["version"]:
-                state = f"version {info['version']}, set {_age(info['set_at'])}" + (
+                state = f"version {info['version']}, set {age(info['set_at'])}" + (
                     f" ({info['why']})" if info["why"] else "")
             else:
                 state = "nothing written yet"
@@ -569,6 +571,24 @@ def run(carabiner: Any, argv: List[str]) -> int:
         for line in s["problems"]:
             print(f"  ! {line}")
         return 0
+
+    if sub == "import":
+        from .config import load_for
+        from .door import import_from_margin
+        connection = _opt(argv, "--from")
+        if not connection:
+            try:
+                cfg = load_for(name, argv)
+            except OSError:
+                cfg = None
+            connection = cfg.connection(cfg.bookmark) if cfg is not None and cfg.bookmark else ""
+        if not connection:
+            print(f"kbh {name} piton import: no Margin to take the pages from (no `bookmark:` in the config; "
+                  f"--from CONNECTION names one)", file=sys.stderr)
+            return 64
+        lines, ok = import_from_margin(p, connection, name)
+        print("\n".join(lines), file=sys.stdout if ok else sys.stderr)
+        return 0 if ok else 1
 
     if sub not in ("show", "set", "restore") or len(args) < 2 or args[1] not in PAGES:
         print(USAGE.format(c=name), file=sys.stderr)
@@ -590,7 +610,7 @@ def run(carabiner: Any, argv: List[str]) -> int:
         print(r["text"] if r["text"] else
               f"(no {page} {'shown: it is off' if r['writer'] == 'off' else 'written yet'})")
         for v in hist:
-            print(f"\n--- version {v['version']}, {_age(v['set_at'])}, by {v['by'] or '?'}"
+            print(f"\n--- version {v['version']}, {age(v['set_at'])}, by {v['by'] or '?'}"
                   + (f": {v['why']}" if v["why"] else "") + f" ---\n{v['text']}")
         return 0
 

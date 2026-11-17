@@ -159,7 +159,7 @@ class Carabiner:
         print(f"wrote {out['yaml']}")
         print(f"framing: {out['framing']} ({'written from the default' if out['framing_written'] == 'yes' else 'kept as it was'})")
         from .install import clip_piton
-        piton_lines, piton_ok = clip_piton(out["yaml"], opt("--piton"))
+        piton_lines, piton_ok = clip_piton(out["yaml"], opt("--piton"), self.name)
         print("\n".join(piton_lines), file=sys.stdout if piton_ok else sys.stderr)
         if not piton_ok:
             return 1

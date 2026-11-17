@@ -122,12 +122,26 @@ The `bookmark` verb stops being "Margin's bookmark" and becomes the thing that
 from the piton, and from Margin (if `bookmark:` has a route) only the line
 counting unread letters. A box with no Margin gets the dedication and no
 letters line. A box with no dedication (`off`, or nothing written yet) gets
-one line saying how to write one, or nothing at all when it is `off`.
+one line saying how to write one, or nothing at all when it is `off`. Built in
+`kbh/door.py`, shared by every carabiner.
+
+**The transition.** Until a page has been taken over from Margin, the piton's
+dedication is empty and Margin's is not; the hook then shows Margin's copy,
+says so, and says to run `piton import`. No session walks in without its
+dedication because a migration was half done.
+
+**The preface is opt-in in a hook, and never on a wake** (decided 16 Nov 2026
+on reading the real one). The preface on Chad's box is written for Symposium:
+"You answer Chad in Seren Symposium ... Chad is here. He is reading live."
+Printed into a 3 a.m. wake, that tells a session with nobody in the room that
+someone is watching. So a carabiner's yaml says `piton_preface: true` to have
+its hook print the preface (before the dedication: the room, then who walks
+into it), and a woken session never gets it.
 
 | Harness | Dedication | Preface |
 |---|---|---|
-| Claude Code | SessionStart hook prints it, as today | the same hook prints it, preface first, as context: a hook cannot replace the system prompt, so the page arrives beside it instead of in place of it. On `wake`, possibly through the CLI's system-prompt flag; **to verify** against the CLI before it is promised |
-| Codex | in the wake message, as Margin's bookmark is today | the same message, or AGENTS.md; **to decide** |
+| Claude Code | SessionStart hook prints it, as today; a box with no Margin gets the hook too, pointed at its yaml | the same hook, before the dedication, only with `piton_preface: true` in claude.yaml, never on a wake: a hook cannot replace the system prompt, so the page arrives beside it |
+| Codex | the SessionStart hook, and in the wake message itself | the hook only with `piton_preface: true`; never in a wake message |
 | Copilot | **to decide** | **to decide** |
 | Symposium (Claude voice) | through the Claude Code hook | `preface.file:` already exists in Symposium's config: point it at `preface.md` |
 
@@ -216,11 +230,18 @@ exists to prevent. Each carabiner implements only the loading.
 
 - Margin keeps `/bookmark`, `/dedication` and `/preface` for a transition, so
   an older carabiner and today's Symposium keep working.
-- Margin needs **one small addition first**: the store keeps every version of
-  both pages, but only the preface's history is reachable at all (the MCP
-  `preface` tool's `history`), and neither is over HTTP. The import needs
-  `GET /dedication?history=N` and `GET /preface?history=N` (with
-  `set_at` and `why`).
+- Margin serves the history the import needs (added 16 Nov 2026):
+  `GET /dedication?history=N` and `GET /preface?history=N`, newest first,
+  with `set_at` and `why`, served like the bookmark. **That Margin has to be
+  deployed before a box installs the new carabiner**, or the import says the
+  Margin is older and the hook keeps showing Margin's copy until
+  `kbh <c> piton import` is run after the upgrade.
+- **The import** (`kbh <c> piton import`, and install runs it when the yaml
+  has a `bookmark:` route): a page the piton has no version of comes across
+  with every version, dates, whys, `by: margin`. A page the piton already has
+  (imported, set, or written by hand) is never touched, so it is safe to run
+  again. Margin down or older is a line saying what to do, never a failed
+  install.
 - Once every carabiner on a box has a piton, Margin's bookmark is the
   letter count, and the dedication and preface routes can go in a later
   major version.

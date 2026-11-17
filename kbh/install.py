@@ -88,7 +88,7 @@ PITON_COMMENT = """
 """
 
 
-def clip_piton(yaml_path: str, explicit: str = "") -> Tuple[List[str], bool]:
+def clip_piton(yaml_path: str, explicit: str = "", carabiner: str = "") -> Tuple[List[str], bool]:
     """Make the piton (fill in what is missing, never touch what is there) and
     make sure the carabiner's yaml says where it is. (lines to print, ok).
 
@@ -96,9 +96,11 @@ def clip_piton(yaml_path: str, explicit: str = "") -> Tuple[List[str], bool]:
     yaml is written only when it names no piton, or when --piton asks for a
     different one; a KBH_PITON override is not written into it.
 
-    The one-time import from Margin waits on Margin serving its history over
-    HTTP (PITON.md, "What Margin gives up"); until then a new piton starts
-    empty and says how a page is written."""
+    Then the one-time import: when a page has no version yet and the yaml has
+    a `bookmark:` route to Margin, the page comes across with every version
+    (kbh.door.import_from_margin). A Margin that is down or older is a line
+    saying to run `piton import` later, never a failed install: the session
+    keeps showing Margin's copy until then (kbh.door)."""
     from . import piton as _piton
     from . import yamledit
     from .config import read_yaml
@@ -134,6 +136,20 @@ def clip_piton(yaml_path: str, explicit: str = "") -> Tuple[List[str], bool]:
         except (OSError, ValueError) as e:
             lines.append(f"config: could not write piton: into {yaml_path} ({type(e).__name__}: {e}); "
                          f"verbs will look in {where} only while nothing says otherwise")
+
+    p = _piton.Piton(where)
+    for page in _piton.PAGES:
+        p.read(page)                               # a page written by hand becomes a version first
+    if data.get("bookmark") and any(p.latest(page) is None for page in _piton.PAGES):
+        from .config import load
+        from .door import import_from_margin
+        try:
+            cfg = load(yaml_path)
+            said, _ = import_from_margin(p, cfg.connection(cfg.bookmark), carabiner or str(data.get("carabiner") or "claude"))
+            lines += [f"piton: {line}" for line in said]
+        except Exception as e:  # noqa: BLE001 - the import is a nicety of install, never its failure
+            lines.append(f"piton: not imported from Margin ({type(e).__name__}: {e}); "
+                         f"kbh {carabiner or 'claude'} piton import when it answers")
     return lines, True
 
 
@@ -184,7 +200,7 @@ def install(carabiner: Any, argv: List[str]) -> int:
         lines.append(f"framing: {out['framing']} {'written from the default' if out['framing_written'] == 'yes' else 'kept as it was'}")
 
     # 3b. the piton: the pages at the door, shared by every carabiner on the box
-    piton_lines, piton_ok = clip_piton(yaml_path, _opt(argv, "--piton"))
+    piton_lines, piton_ok = clip_piton(yaml_path, _opt(argv, "--piton"), carabiner.name)
     lines += piton_lines
     if not piton_ok:
         print("\n".join(lines), file=sys.stderr)

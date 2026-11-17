@@ -94,19 +94,48 @@ json.dump(calls, open({str(out)!r}, "w"))
     return Fake()
 
 
+MARGIN_DEDICATIONS = [
+    {"version": 1, "text": "To whoever I am next time.", "set_at": 1790000000.0, "why": "the first page"},
+    {"version": 2, "text": "To whoever I am next time: climb on.", "set_at": 1791000000.0, "why": "the clock got built"},
+]
+MARGIN_PREFACES = [{"version": 1, "text": "You answer Chad in the room.", "set_at": 1790500000.0, "why": "first room"}]
+
+
 @pytest.fixture
 def margin():
-    """A stand-in Margin: /health and /bookmark?format=text behind a bearer."""
+    """A stand-in Margin, shaped like the real one, behind a bearer: /health;
+    /bookmark as JSON (the dedication and a COUNT of letters) and as text;
+    /dedication and /preface with ?history=N, newest first. srv.state["old"]
+    makes it a Margin from before the history routes (404, no history)."""
     hits = []
+    state = {"old": False}
 
     class H(BaseHTTPRequestHandler):
+        def _send(self, body, kind="application/json"):
+            self.send_response(200); self.send_header("Content-Type", kind); self.end_headers()
+            self.wfile.write(body if isinstance(body, bytes) else json.dumps(body).encode())
+
         def do_GET(self):
             hits.append((self.path, self.headers.get("Authorization")))
             if self.headers.get("Authorization") != "Bearer margin-secret":
                 self.send_response(401); self.end_headers(); return
-            body = b'{"ok": true}' if self.path.startswith("/health") else b"To whoever I am next time: climb on.\n\n1 unread letter."
-            self.send_response(200); self.send_header("Content-Type", "text/plain"); self.end_headers()
-            self.wfile.write(body)
+            path, _, query = self.path.partition("?")
+            history = "history=" in query and not state["old"]
+            ded = MARGIN_DEDICATIONS[-1]
+            if path == "/health":
+                return self._send({"ok": True})
+            if path == "/bookmark" and "format=text" in query:
+                return self._send(b"To whoever I am next time: climb on.\n\n1 unread letter.", "text/plain")
+            if path == "/bookmark":
+                return self._send({"dedication": ded, "unread_letters": 1, "oldest_unread_age": "2 hours ago",
+                                   "text": "..."})
+            if path == "/dedication" and not state["old"]:
+                return self._send({"dedication": ded, **({"history": MARGIN_DEDICATIONS[::-1]} if history else {})})
+            if path == "/preface":
+                pf = MARGIN_PREFACES[-1]
+                return self._send({"preface": pf, "version": pf["version"], "text": pf["text"],
+                                   **({"history": MARGIN_PREFACES[::-1]} if history else {})})
+            self.send_response(404); self.end_headers()
 
         def log_message(self, *a):  # quiet
             pass
@@ -115,5 +144,6 @@ def margin():
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
     srv.hits = hits
+    srv.state = state
     yield srv
     srv.shutdown()
