@@ -56,6 +56,61 @@ def _where(route: Any) -> str:
     return str(route or "")
 
 
+# ── the piton's settings (PITON.md, "In the settings form") ──────────────────
+# Every carabiner shows them, so they are added here and not in each
+# carabiner's settings_fields(). The keys are `piton.<writer>` and
+# `piton.<page>_page`; they are written to the piton (piton.yaml, and the
+# pages through Piton.set so every save is a version), never to this yaml.
+PITON_SECTION = "The pages at the door"
+PITON_SECTION_HELP = ("Shared by every carabiner on this box: a change here is a change for all of them. "
+                      "Every version of each page is kept.")
+PITON_WRITERS = {"preface": ("Who writes the room page (preface)", "How this room works and how to be in it."),
+                 "dedication": ("Who writes its own page (dedication)", "Who it is, written to its other sessions.")}
+PITON_PAGES = {"preface": ("The room page", "Read to the model where its carabiner says so (piton_preface)."),
+               "dedication": ("Its own page", "What every session of it reads first.")}
+
+
+def _piton(cfg: config.HarnessConfig):
+    from .piton import Piton
+    return Piton(cfg.piton_dir())
+
+
+def _readonly_reason(writer: str) -> Any:
+    if writer == "self":
+        return "The model writes this page. Set who writes it to 'You' to write it here."
+    if writer == "off":
+        return "This page is off: nobody writes it and it is not shown."
+    return False
+
+
+def piton_fields(p, writers: Optional[Dict[str, str]] = None) -> List[schema.Field]:
+    """The piton's section of the form. `writers` overrides piton.yaml (a
+    change that hands a page over and writes it in one go)."""
+    opts, _ = p.options()
+    writers = {pg: (writers or {}).get(pg, opts[pg]) for pg in ("preface", "dedication")}
+    choices = [schema.choice("self", "The model", "Its own page: it writes it, through the Workbench."),
+               schema.choice("operator", "You", "You write it, here or in the file."),
+               schema.choice("off", "Nobody", "Not written and not shown.")]
+    out: List[schema.Field] = []
+    for page in ("preface", "dedication"):
+        label, help_ = PITON_WRITERS[page]
+        out.append(schema.Field(f"piton.{page}", label, help=help_, kind="choice", choices=choices,
+                                default=opts[page], applies="next_session",
+                                section=PITON_SECTION, section_help=PITON_SECTION_HELP))
+        label, help_ = PITON_PAGES[page]
+        out.append(schema.Field(f"piton.{page}_page", label, help=help_, kind="note", applies="next_session",
+                                readonly=_readonly_reason(writers[page]),
+                                section=PITON_SECTION, section_help=PITON_SECTION_HELP))
+    return out
+
+
+def _piton_value(p, key: str) -> Any:
+    page = key.split(".", 1)[1]
+    if page.endswith("_page"):
+        return p.read(page[: -len("_page")])["text"]
+    return p.options()[0][page]
+
+
 def manifest(c, cfg: config.HarnessConfig) -> Dict[str, Any]:
     """What the Rack draws: every setting with its value now. A note's value
     is its file's text (the package default while the yaml names none)."""
@@ -68,6 +123,10 @@ def manifest(c, cfg: config.HarnessConfig) -> Dict[str, Any]:
         else:
             d["value"] = schema.current(f, data)
         fields.append(d)
+    p = _piton(cfg)
+    if p.exists():
+        for f in piton_fields(p):
+            fields.append({**f.to_dict(), "value": _piton_value(p, f.key)})
     for f in schema.custom_fields(data):               # what was added on this box, then where to add more
         v = schema.current(f, data)
         fields.append({**f.to_dict(), "value": "" if v is None else str(v)})
@@ -76,6 +135,8 @@ def manifest(c, cfg: config.HarnessConfig) -> Dict[str, Any]:
                    for name, route in cfg.servers.items()]
     if cfg.bookmark:
         connections.append({"name": "bookmark", "where": _where(cfg.bookmark), "token": _token_kind(cfg.bookmark)})
+    if p.exists():
+        connections.append({"name": "piton", "where": p.root, "note": "shared by every carabiner on this box"})
     return {"ok": True, "carabiner": c.name, "display": c.display, "version": full_version(), "config": cfg.path,
             "fields": fields, "connections": connections}
 
@@ -107,6 +168,17 @@ def change(c, cfg: config.HarnessConfig, values: Dict[str, Any], unset: List[str
         name = schema.custom_name(key)
         if name and key not in fields:
             fields[key] = schema.custom_field(name)
+    from .piton import DEFAULTS as PITON_DEFAULTS
+    p = _piton(cfg)
+    if p.exists():
+        # Which pages are read only follows the writers this change LEAVES:
+        # handing a page to "You" and writing it is one change, not two.
+        writers = {k.split(".", 1)[1]: str(v).strip().lower() for k, v in (values or {}).items()
+                   if k in ("piton.preface", "piton.dedication")}
+        writers.update({k.split(".", 1)[1]: PITON_DEFAULTS[k.split(".", 1)[1]] for k in (unset or [])
+                        if k in ("piton.preface", "piton.dedication")})
+        fields.update({f.key: f for f in piton_fields(p, writers)})
+        caps = p.options()[0]["caps"]
     refused: Dict[str, str] = {}
     clean: Dict[str, Any] = {}
     for key, value in (values or {}).items():
@@ -115,6 +187,14 @@ def change(c, cfg: config.HarnessConfig, values: Dict[str, Any], unset: List[str
             refused[key] = f"not a setting the {c.display} carabiner has"
             continue
         v, why = schema.validate(f, value, expert)
+        if not why and f.readonly:
+            why = str(f.readonly) if f.readonly is not True else "shown here, not written here"
+        if not why and key.startswith("piton.") and key.endswith("_page"):
+            page = key[len("piton."):-len("_page")]
+            if not str(v).strip():
+                why = "a page is never emptied; set who writes it to 'Nobody' to stop showing it"
+            elif len(str(v).strip()) > caps[page]:
+                why = f"{len(str(v).strip())} characters; the {page} is capped at {caps[page]}"
         if why:
             refused[key] = why
         else:
@@ -126,14 +206,23 @@ def change(c, cfg: config.HarnessConfig, values: Dict[str, Any], unset: List[str
             refused[key] = "both set and unset in one change"
         elif fields[key].required:
             refused[key] = "has no default to go back to; set it to something else instead"
+        elif key.startswith("piton.") and key.endswith("_page"):
+            refused[key] = "a page is not unset: write a new version, or set who writes it to 'Nobody'"
     out: Dict[str, Any] = {"ok": False, "carabiner": c.name, "config": cfg.path, "applied": [],
                            "refused": refused, "applies": {}, "belay_ok": None, "belay": [], "error": ""}
     if refused:
         out["error"] = "nothing was written: " + "; ".join(f"{k}: {why}" for k, why in refused.items())
         return out
 
+    # The piton's keys are the piton's, not this yaml's.
+    piton_set = {k: v for k, v in clean.items() if k.startswith("piton.")}
+    piton_unset = [k for k in (unset or []) if k.startswith("piton.")]
+    clean = {k: v for k, v in clean.items() if not k.startswith("piton.")}
+    unset_here = [k for k in (unset or []) if not k.startswith("piton.")]
+
     with open(cfg.path, encoding="utf-8") as fh:
         text = fh.read()
+    original = text
     notes: Dict[str, str] = {}
     try:
         for key, v in clean.items():
@@ -141,9 +230,18 @@ def change(c, cfg: config.HarnessConfig, values: Dict[str, Any], unset: List[str
                 notes[key] = v
             else:
                 text = yamledit.set(text, key, v)
-        for key in unset or []:
+        for key in unset_here:
             text = yamledit.unset(text, key)
-    except ValueError as e:
+        piton_text = None
+        writer_keys = [k for k in piton_set if not k.endswith("_page")]
+        if writer_keys or piton_unset:
+            with open(p.yaml_path, encoding="utf-8") as fh:
+                piton_text = fh.read()
+            for key in writer_keys:
+                piton_text = yamledit.set(piton_text, key.split(".", 1)[1], piton_set[key])
+            for key in piton_unset:
+                piton_text = yamledit.unset(piton_text, key.split(".", 1)[1])
+    except (ValueError, OSError) as e:
         out["error"] = f"nothing was written: {e}"
         return out
     if notes and not cfg.framing:                     # the package default until now: a file of its own from here on
@@ -157,13 +255,33 @@ def change(c, cfg: config.HarnessConfig, values: Dict[str, Any], unset: List[str
         for note in notes.values():
             yamledit.write(note_path, note)
             wrote_note = True
-        yamledit.write(cfg.path, text)
+        if text != original:                          # a change that is only the piton's leaves this yaml be
+            yamledit.write(cfg.path, text)
     except OSError as e:
         out["error"] = (f"the wake note was written to {note_path} but {cfg.path} could not be: {e}" if wrote_note
                         else f"nothing was written: {e}")
         return out
 
-    applied = list(clean) + list(unset or [])
+    # Then the piton: its options first (a page handed to "You" in this change
+    # is then the operator's to write), then each page as a new version.
+    written = list(clean) + unset_here
+    try:
+        if piton_text is not None:
+            yamledit.write(p.yaml_path, piton_text)
+            written += [k for k in piton_set if not k.endswith("_page")] + piton_unset
+        for key, page_text in piton_set.items():
+            if key.endswith("_page"):
+                p.set(key[len("piton."):-len("_page")], str(page_text), why="saved from the settings form",
+                      by="operator")
+                written.append(key)
+        if piton_text is not None:
+            p.apply_locks()                           # the lock follows the new writer now, not at the next read
+    except Exception as e:  # noqa: BLE001 - PitonError, OSError: say what landed and what did not
+        out["error"] = (f"{', '.join(written) or 'nothing'} written; then the piton refused: "
+                        f"{type(e).__name__}: {e}")
+        return out
+
+    applied = list(clean) + list(unset or []) + [k for k in piton_set if k not in clean]
     out.update(ok=True, applied=applied, applies={k: fields[k].applies for k in applied})
     if run_belay:
         out.update(_belay_lines(c, cfg.path))
@@ -211,7 +329,8 @@ def run(c, argv: List[str]) -> int:
                 ", ".join(value) if isinstance(value, list) else ("" if value is None else str(value)))
             print(f"  {f['key']:28s} {shown or '(not set)'}    {f['label']}")
         for conn in m["connections"]:
-            print(f"  connection {conn['name']}: {conn['where']} (token: {conn['token']})")
+            said = f"token: {conn['token']}" if "token" in conn else conn.get("note", "")
+            print(f"  connection {conn['name']}: {conn['where']}" + (f" ({said})" if said else ""))
         return 0
 
     if sub == "get":
@@ -219,6 +338,10 @@ def run(c, argv: List[str]) -> int:
             print(f"usage: kbh {c.name} config get KEY", file=sys.stderr)
             return 64
         f = next((x for x in c.settings_fields(cfg) if x.key == words[0]), None)
+        p = _piton(cfg)
+        if f is None and p.exists() and words[0] in {x.key for x in piton_fields(p)}:
+            print(_piton_value(p, words[0]))
+            return 0
         if f is None and schema.custom_name(words[0]):
             f = schema.custom_field(schema.custom_name(words[0]))
         if f is None:

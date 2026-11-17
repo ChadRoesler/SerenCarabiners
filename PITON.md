@@ -98,11 +98,12 @@ caps:
    there.** A half-made folder (a crash, a deleted `preface.md`) is repaired;
    an edited page is never overwritten. Same rule as the yaml and
    `framing.md` today.
-3. **Import from Margin, once.** Only when this install *created*
-   `dedication.md` (or `preface.md`), and the yaml has a `bookmark:` route to
-   a Margin that has one: pull the page *with its whole history* into
-   `history/`, versions and dates and whys intact. Never again after that, so
-   it can never clobber a page written since.
+3. **Import from Margin, once.** Only for a page the piton has no version of
+   yet (so an upgraded box that re-runs install imports too), and only when
+   the yaml has a `bookmark:` route to a Margin that has one: pull the page
+   *with its whole history* into `history/`, versions and dates and whys
+   intact. Once a page has a version it is never imported over, so it can
+   never clobber a page written since.
 4. Write `piton: <dir>` into the carabiner's yaml if it is not there.
 
 `init` (the quiet form) does the same. Nothing about this needs a flag for the
@@ -192,22 +193,29 @@ The Rack's form already draws whatever `settings_fields()` returns, and it
 already edits a page through a `note` field (the wake note is `framing.md`).
 The piton is one more section of it, **"The pages at the door"**:
 
-| Field | Kind | Writes |
+| Key | Kind | Writes |
 |---|---|---|
-| `piton.preface` "Who writes the room page" | choice: the model / you / nobody | `piton.yaml` |
-| `piton.dedication` "Who writes its own page" | choice: the model / you / nobody | `piton.yaml` |
-| Room page | note | `preface.md`, through `piton set`, so it becomes a version; editable when the room page is yours |
-| Its own page | note, **read only** while the model writes it | `dedication.md`: shown, so the operator can see the front page without opening a drawer; editable only when set to "you" |
+| `piton.preface` "Who writes the room page (preface)" | choice: the model / you / nobody | `piton.yaml` |
+| `piton.preface_page` "The room page" | note; read only unless the room page is yours | `preface.md`, through `Piton.set` (`by: operator`, `why: saved from the settings form`), so every save is a version |
+| `piton.dedication` "Who writes its own page (dedication)" | choice | `piton.yaml` |
+| `piton.dedication_page` "Its own page" | note, **read only** while the model writes it | shown, so the operator sees the front page without opening a drawer; written only when it is set to "you" |
 
-Two small changes in the binder this needs:
+Built (17 Nov 2026) in `kbh/configure.py`, for every carabiner, not in each
+one's `settings_fields()`:
 
-- **A `piton.` key writes `piton.yaml`, not the carabiner's yaml.** The piton is
+- **A `piton.` key is the piton's, not the carabiner's yaml.** The piton is
   shared, so changing it from the Claude Code card changes it for Codex on the
-  same box too, and the form says so: *"shared by every carabiner on this box"*.
-- **A `readonly` flag on `Field`**, with the reason shown in its place ("this is
-  its page; set it to 'you' to write it here"). Nothing today is read only.
-
-And "Connected to Seren" gains one line: `piton  ~/.seren/piton · shared`.
+  same box too, and the section says so. A change that is only the piton's
+  leaves the carabiner's yaml untouched.
+- **`readonly` and `section` / `section_help` on `Field`.** `readonly` is the
+  reason in words; the Rack draws the value with the reason under it and sends
+  nothing back, and `config` refuses the write all the same.
+- **Which page is read only follows the writers the change leaves**, so "hand
+  it to You and write it" is one change. All or nothing, like every change: one
+  refused value and nothing is written. A page is never emptied or unset from
+  the form (set who writes it to "Nobody" instead).
+- "Connected to Seren" gains `piton  <folder>  shared by every carabiner on
+  this box`, with no token.
 
 ## `belay`
 
@@ -255,35 +263,50 @@ files on the harness box, so the Workbench cannot write them. It does not
 need to:
 
 1. `set_dedication` on the Workbench checks the cap and keeps the page as the
-   **newest version it has been handed**, with `set_at` and `why`. That is
-   the whole write.
-2. The next time a session starts on any box, the bookmark hook (already
-   running there, already holding the Workbench's route) asks the Workbench
-   for anything newer than the piton's newest version, writes it through
-   `piton set`, and then prints the page.
+   **newest version it has been handed**, numbered by its own count (`seq`,
+   per page), with `set_at` and `why`. That is the whole write. (While Margin
+   still offers its writers, the Workbench passes the write on to Margin too,
+   so a box on an old carabiner keeps reading it; and the Workbench claims the
+   four page tool names, so Margin's copies never answer behind the one door.)
+2. The next time a session starts on any box, the bookmark hook asks
+   `GET /pages/<page>?after=N`, where N is the `seq` this piton last took
+   (kept in `.pulled.json` in the piton: `piton.yaml` is the operator's file),
+   writes what comes back through `Piton.set` (`by: pull`), and then prints
+   the page. `204` is "nothing newer"; a Workbench without `/pages` is quiet.
+
+**One call, no clocks** (lodestar and workbench, 17 Nov 2026). The hook asks
+`GET /pages` (each page's `seq`, or null) with a 1.5 s timeout, and fetches a
+page only when its `seq` moved: the usual session start is one call, and a
+Workbench that is down costs one short wait. "Newer" is the Workbench's own
+count, and "this box changed the page since the last pull" (a hand edit, the
+operator) is the piton's own version against the one `.pulled.json` recorded
+right after that pull (`{seq, version}` per page): no box's clock is ever set
+against another's. **The box's change is kept**, the Workbench's is skipped
+with one line, and the next write through the Workbench is taken again;
+nothing is lost because the Workbench still holds it. (The first draft
+compared timestamps, and its test stand-in served epoch floats where the real
+door sends ISO strings, so every real pull would have been refused. The test
+stand-in now serves what the real door serves.)
 
 The page is written *to the next session*, so landing at the next session
-start costs nothing. A box with two harnesses, or two boxes, each pull the
-same version and converge. **When a box's page changed by hand after the
-Workbench's version was set**, the later `set_at` is the page, and the other is
-kept in `history/` with `why: superseded on pull`: nothing is lost either way.
+start costs nothing. Two harnesses on a box, or two boxes, pull the same
+version and agree.
 
 The `self | operator | off` option is enforced at the pull, on the box that
-owns the piton: a Workbench handed a dedication for a box whose piton says
-`operator` or `off` keeps it, and the pull refuses it and says so in one line.
+owns the piton: a model-written page for a box whose piton says `operator` or
+`off` is not taken, said once, and not asked for again.
+
+Which route is the Workbench: the carabiner yaml's `workbench: NAME`, else the
+one server when there is only one (the single-door shape), else none.
 
 `piton set` through the shell stays, for a person, a script, or a session with
 no Workbench.
 
 ## Open
 
-1. **The Workbench side of the loop**: its own `set_dedication`/`set_preface`
-   (today they come from Margin's manifest) and a read the hook can ask
-   "anything newer than version N, set after T?". It needs designing in the
-   Workbench, not here.
-2. **Chad's own Symposium**: is it on the same box as the piton? If it is,
+1. **Chad's own Symposium**: is it on the same box as the piton? If it is,
    `preface.file` does it today. If not, it needs a way to reach the page.
-3. **Preface loading** for Claude Code (interactive and wake), Codex and
+2. **Preface loading** for Claude Code (interactive and wake), Codex and
    Copilot: verify, then fill in the table.
-4. **Version**: a new step in install and a new verb is 5.4.0, not a major.
+3. **Version**: a new step in install and a new verb is 5.4.0, not a major.
    Nothing that exists today stops working.

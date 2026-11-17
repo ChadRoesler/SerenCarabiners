@@ -77,6 +77,11 @@ class Field:
     required: bool = False         # no default to go back to: cannot be unset
     applies: str = "next_session"
     custom: bool = False           # added on this box, not one of the carabiner's own: unset takes it away
+    # Shown, never sent back: False, or the reason in words (the Rack draws the
+    # value with the reason under it, and `config` refuses a write all the same).
+    readonly: Any = False
+    section: str = ""              # a header where the section changes (the Rack, 17 Nov 2026)
+    section_help: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
