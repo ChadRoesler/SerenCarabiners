@@ -144,6 +144,7 @@ class HarnessConfig:
     bookmark: Any = ""                                          # Margin: a connection file, an inline route, or ""
     framing: str = ""                                           # path to the framing text, or "" = the package default
     kitchen: Any = ""                                           # the kitchen, for presence: a route (+ partner, hand), a file, or ""
+    piton: str = ""                                             # the pages at the door (kbh.piton): a folder, or "" = the default
     wake: Dict[str, Any] = field(default_factory=dict)
     session: Dict[str, Any] = field(default_factory=dict)       # what a session may do: permission_mode, allowed_tools
     path: str = ""                                              # the yaml this came from
@@ -206,6 +207,12 @@ class HarnessConfig:
         items = list(self.servers.values()) + [r for r in (self.bookmark, self.kitchen) if isinstance(r, dict)]
         return any(isinstance(r, dict) and r.get("bearer_token") for r in items)
 
+    def piton_dir(self, explicit: str = "") -> str:
+        """The piton folder this box uses: --piton, KBH_PITON, this yaml's
+        `piton:` (relative to its folder), ~/.seren/piton."""
+        from .piton import locate
+        return locate(explicit=explicit, configured=self.piton, base=self.folder)
+
     def framing_path(self) -> str:
         return self.resolve(self.framing) if self.framing else ""
 
@@ -237,7 +244,7 @@ def load(path: str) -> HarnessConfig:
     path = os.path.abspath(os.path.expanduser(path))
     data = read_yaml(path)                                       # OSError if missing, on purpose
     known = {"carabiner", "project", "python", "connections", "servers", "bookmark", "framing", "wake", "session",
-             "kitchen"}
+             "kitchen", "piton"}
     servers = data.get("servers") if isinstance(data.get("servers"), dict) else {}
     bookmark = data.get("bookmark")
     kitchen = data.get("kitchen")
@@ -249,7 +256,7 @@ def load(path: str) -> HarnessConfig:
                          kitchen=dict(kitchen) if isinstance(kitchen, dict) else str(kitchen or ""),
                          wake=dict(data.get("wake") or {}) if isinstance(data.get("wake"), dict) else {},
                          session=dict(data.get("session") or {}) if isinstance(data.get("session"), dict) else {},
-                         path=path, extra={k: v for k, v in data.items() if k not in known})
+                         piton=str(data.get("piton") or ""), path=path, extra={k: v for k, v in data.items() if k not in known})
 
 
 def find(carabiner: str, explicit: Optional[str] = None) -> Optional[str]:

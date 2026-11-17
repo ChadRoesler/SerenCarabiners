@@ -5,7 +5,9 @@ kbh.install - `kbh <carabiner> install --into DIR ...`: the whole clip in one go
     2. run custom/pre_install/*.py
     3. write <carabiner>.yaml from the carabiner's config.yaml template, filled
        with the flags; copy its framing.md beside it. Neither is ever
-       overwritten: a re-install keeps what you edited.
+       overwritten: a re-install keeps what you edited. Then the piton
+       (kbh.piton): made if it is not there, filled in if it is half there,
+       and the yaml told where it is (--piton DIR picks the folder).
     4. run custom/post_install/*.py (register apply, bookmark install, belay
        live here when someone ships a flavour that does it all)
     5. say what to do next
@@ -18,7 +20,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import custom as _custom
 from .config import write_starter
@@ -80,11 +82,66 @@ def _into(argv: List[str]) -> Optional[str]:
     return os.path.dirname(archive) if archive else None
 
 
+PITON_COMMENT = """
+# The pages at the door: the dedication and the preface, one folder per box
+# shared by every carabiner on it (PITON.md). Made by install; never removed.
+"""
+
+
+def clip_piton(yaml_path: str, explicit: str = "") -> Tuple[List[str], bool]:
+    """Make the piton (fill in what is missing, never touch what is there) and
+    make sure the carabiner's yaml says where it is. (lines to print, ok).
+
+    The folder: --piton, KBH_PITON, the yaml's `piton:`, ~/.seren/piton. The
+    yaml is written only when it names no piton, or when --piton asks for a
+    different one; a KBH_PITON override is not written into it.
+
+    The one-time import from Margin waits on Margin serving its history over
+    HTTP (PITON.md, "What Margin gives up"); until then a new piton starts
+    empty and says how a page is written."""
+    from . import piton as _piton
+    from . import yamledit
+    from .config import read_yaml
+
+    folder = os.path.dirname(os.path.abspath(yaml_path))
+    try:
+        data = read_yaml(yaml_path)
+    except Exception:  # noqa: BLE001 - a yaml that does not read is belay's to report
+        data = {}
+    configured = str(data.get("piton") or "").strip()
+    where = _piton.locate(explicit=explicit, configured=configured, base=folder)
+    try:
+        created = _piton.Piton(where).make()
+    except OSError as e:
+        return [f"piton: could not make {where}: {type(e).__name__}: {e}"], False
+    if where in created:
+        lines = [f"piton: {where} made"]
+    elif created:
+        lines = [f"piton: {where} filled in: " + ", ".join(os.path.relpath(p, where) for p in created)]
+    else:
+        lines = [f"piton: {where} kept as it was"]
+
+    named = os.path.abspath(os.path.join(folder, os.path.expanduser(configured))) if configured else ""
+    if named != where and (explicit or not configured):
+        try:
+            text = open(yaml_path, encoding="utf-8").read()
+            if "piton" in data:
+                text = yamledit.set(text, "piton", where)
+            else:
+                text = text.rstrip("\n") + "\n" + PITON_COMMENT + f"piton: {yamledit.scalar(where)}\n"
+            yamledit.write(yaml_path, text)
+            lines.append(f"config: piton: {where} written into {yaml_path}")
+        except (OSError, ValueError) as e:
+            lines.append(f"config: could not write piton: into {yaml_path} ({type(e).__name__}: {e}); "
+                         f"verbs will look in {where} only while nothing says otherwise")
+    return lines, True
+
+
 def install(carabiner: Any, argv: List[str]) -> int:
     into = _into(argv)
     if not into:
         print(f"usage: kbh {carabiner.name} install --into DIR --project DIR [--python P] [--connections DIR] "
-              f"[--server NAME=FILE ...] [--bookmark FILE]  (run from a .kbh, --into defaults to its own folder)",
+              f"[--server NAME=FILE ...] [--bookmark FILE] [--piton DIR]  (run from a .kbh, --into defaults to its own folder)",
               file=sys.stderr)
         return 64
     os.makedirs(into, exist_ok=True)
@@ -125,6 +182,13 @@ def install(carabiner: Any, argv: List[str]) -> int:
                             template=carabiner.config_template())
         lines.append(f"config: {out['yaml']} written")
         lines.append(f"framing: {out['framing']} {'written from the default' if out['framing_written'] == 'yes' else 'kept as it was'}")
+
+    # 3b. the piton: the pages at the door, shared by every carabiner on the box
+    piton_lines, piton_ok = clip_piton(yaml_path, _opt(argv, "--piton"))
+    lines += piton_lines
+    if not piton_ok:
+        print("\n".join(lines), file=sys.stderr)
+        return 1
 
     # 4. post-install hooks
     try:

@@ -137,10 +137,26 @@ the way `due` does now. It is not an error.
 ## Who writes it: `piton set`
 
 ```bash
-kbh claude piton show [dedication|preface] [--history N]
-kbh claude piton set dedication --why "the clock got built" < page.md
-kbh claude piton set preface   --why "..."  < page.md
+kbh claude piton                                        # where it is, who writes what, each page's version
+kbh claude piton show dedication [--history N] [--json]
+kbh claude piton set dedication --why "the clock got built" < page.md     # or --file page.md
+kbh claude piton restore dedication 5                   # version 5 back, as a new version
 ```
+
+**Who is writing**: `--as self|operator`, else `KBH_AS`, else `self` when the
+command runs inside a harness session (Claude Code sets `CLAUDECODE` for what
+it runs; a wake has `SEREN_KBH_WAKE`), else `operator`. A refusal says which
+writer the page has and how to say who you are.
+
+**The fat-finger lock** (16 Nov 2026: "if i look at it, and fat finger ... i
+dont want to potentially trash or fuck something up"). A page the operator does
+not write (`self`, `off`) is **read only on disk**, and so is **every history
+file**: Notepad can open them and cannot save over them. The verbs unlock,
+write and lock again; changing the writer moves the lock at the next read.
+Taking the read-only mark off by hand is a deliberate act, and what is saved
+then is recorded as a hand edit. The operator's own page stays writable.
+`restore` brings an old version back as a *new* one, so an undo can be undone.
+It is a guard against accidents, not against root.
 
 `set` checks the page against its cap and the `self | operator | off` option,
 writes `history/<page>/NNNN.md` first and then replaces the page, so a crash

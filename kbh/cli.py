@@ -12,9 +12,12 @@ kbh.cli - the command line.
     kbh <carabiner> route [list|add|remove]   a connection added, moved or dropped after the install: the
                                               yaml changed, the harness told, belay run; the token from the
                                               environment or a hidden prompt, never the command line
+    kbh <carabiner> piton [show|set|restore]  the pages at the door (dedication, preface): one folder per
+                                              box, every version kept, the model's own page read only on disk
     kbh <carabiner> install [--into DIR] ...  the whole clip: push config.yaml -> <carabiner>.yaml, framing.md
-                                              and any shipped custom/ beside the .kbh; run custom hooks
-    kbh <carabiner> init --into DIR ...       only the yaml + framing (install's quiet form)
+                                              and any shipped custom/ beside the .kbh, make the piton; run
+                                              custom hooks
+    kbh <carabiner> init --into DIR ...       only the yaml + framing + piton (install's quiet form)
     kbh install --into DIR                    a tricks pack: a .kbh with only custom/, layered on
     kbh new NAME [--into DIR]                 a carabiner to start from (the template)
     kbh upgrade --from NEW.kbh [--sha256 HEX] this .kbh replaced by NEW, checked first and put back
@@ -39,7 +42,8 @@ from typing import Dict, List, Optional, Type
 from . import full_version
 from .harness import Carabiner
 
-VERB_NAMES = ("register", "wake", "bookmark", "due", "presence", "headers", "belay", "init", "install", "config", "route")
+VERB_NAMES = ("register", "wake", "bookmark", "due", "presence", "headers", "belay", "init", "install", "config", "route",
+              "piton")
 
 
 def _external_dirs(extra: Optional[List[str]] = None) -> List[str]:
@@ -133,7 +137,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 64
     c = cls()
     if len(argv) < 2:
-        print(f"usage: kbh {name} <register|wake|bookmark|due|presence|headers|belay|init|manifest|config> ...", file=sys.stderr)
+        print(f"usage: kbh {name} <register|wake|bookmark|due|presence|headers|belay|init|manifest|config|route|piton> ...",
+              file=sys.stderr)
         return 64
     verb, rest = argv[1], argv[2:]
     # The box's custom/ (beside the config, which is beside the .kbh): extra

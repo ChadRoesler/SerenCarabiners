@@ -124,12 +124,19 @@ class Carabiner:
         from .route import run
         return run(self, argv)
 
+    def piton(self, argv: List[str]) -> int:
+        """The pages at the door (kbh.piton): shared core, the same verb on
+        every carabiner. Loading them into a session is the carabiner's own."""
+        from .piton import run
+        return run(self, argv)
+
     # ── init: the yaml that says how this carabiner rolls here ──
 
     def init(self, argv: List[str]) -> int:
         """kbh <carabiner> init --into DIR --project DIR [--python P] [--connections DIR]
-        [--server NAME=FILE ...] [--bookmark FILE]: write <DIR>/<carabiner>.yaml
-        and <DIR>/framing.md (the default, to edit). Never overwrites a yaml."""
+        [--server NAME=FILE ...] [--bookmark FILE] [--piton DIR]: write
+        <DIR>/<carabiner>.yaml and <DIR>/framing.md (the default, to edit), and
+        make the piton (kbh.piton) if the box has none. Never overwrites a yaml."""
         from .config import write_starter
 
         def opt(flag: str, default: str = "") -> str:
@@ -151,6 +158,11 @@ class Carabiner:
             return 1
         print(f"wrote {out['yaml']}")
         print(f"framing: {out['framing']} ({'written from the default' if out['framing_written'] == 'yes' else 'kept as it was'})")
+        from .install import clip_piton
+        piton_lines, piton_ok = clip_piton(out["yaml"], opt("--piton"))
+        print("\n".join(piton_lines), file=sys.stdout if piton_ok else sys.stderr)
+        if not piton_ok:
+            return 1
         print(f"next: edit them, then  kbh {self.name} belay --config {out['yaml']}")
         return 0
 
@@ -161,6 +173,8 @@ class Carabiner:
 
     def belay(self, argv: List[str]) -> int:
         checks = list(self.belay_checks(argv))
+        from .piton import belay_checks as piton_checks
+        checks += piton_checks(self.name, argv)
         if self.custom is not None:
             checks += self.custom.checks(self, argv)
         rep = belay.run(self.name, checks)
