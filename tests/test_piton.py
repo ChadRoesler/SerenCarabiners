@@ -62,7 +62,7 @@ def test_defaults_when_the_yaml_says_nothing(pt):
     open(pt.yaml_path, "w", encoding="utf-8").write("schema: 1\n")
     opts, problems = pt.options()
     assert (opts["dedication"], opts["preface"]) == ("self", "operator")
-    assert opts["caps"] == {"dedication": 2000, "preface": 8000}
+    assert opts["caps"] == {"dedication": 3000, "preface": 8000}
     assert problems == []
     assert open(pt.yaml_path, encoding="utf-8").read() == "schema: 1\n"     # never written back
 
@@ -84,7 +84,7 @@ def test_the_template_reads_the_same_by_hand(pt):
     from kbh import config
     assert config._two_levels_by_hand(open(pt.yaml_path, encoding="utf-8").read()) == {
         "schema": 1, "dedication": "self", "preface": "operator",
-        "caps": {"dedication": 2000, "preface": 8000}}
+        "caps": {"dedication": 3000, "preface": 8000}}
 
 
 def test_unknown_keys_ignored_and_bad_values_say_so(pt):
@@ -119,8 +119,8 @@ def test_every_version_is_kept(pt):
 
 
 def test_cap_and_empty_are_refused(pt):
-    with pytest.raises(P.PitonError, match="capped at 2000"):
-        pt.set("dedication", "x" * 2001)
+    with pytest.raises(P.PitonError, match="capped at 3000"):
+        pt.set("dedication", "x" * 3001)
     with pytest.raises(P.PitonError, match="must not be empty"):
         pt.set("dedication", "   ")
 
@@ -186,7 +186,7 @@ def test_set_records_a_waiting_hand_edit_before_replacing_it(pt):
 
 def test_over_the_cap_falls_back_to_the_last_good_version(pt):
     pt.set("dedication", "good")
-    _hand(pt, "dedication").write("x" * 2500)
+    _hand(pt, "dedication").write("x" * 3500)
     r = pt.read("dedication")
     assert r["text"] == "good" and r["version"] == 1
     assert "over its cap" in r["problems"][0]
@@ -383,6 +383,6 @@ def test_belay_lets_go_of_a_named_piton_that_is_gone(tmp_path):
 
 def test_belay_lets_go_of_a_page_over_its_cap(pt):
     pt.set("dedication", "good")
-    _hand(pt, "dedication").write("x" * 2500)
+    _hand(pt, "dedication").write("x" * 3500)
     rep = _belay("claude", ["--piton", pt.root])
     assert not rep.ok and any("over its cap" in c.why for c in rep.checks)

@@ -64,6 +64,22 @@ def test_every_version_comes_across_with_its_date_and_why(box):
     assert P.is_locked(p.page_path("dedication"))
 
 
+def test_a_margin_page_longer_than_the_cap_raises_the_cap_and_is_never_skipped(box, monkeypatch):
+    """17 Nov 2026, the first real migration: Margin's v6 was 2253 characters,
+    the cap 2000, and the import skipped the page every session reads. (The
+    default is 3000 since; this page is longer than that.)"""
+    import conftest
+    long_page = "To whoever I am next time. " + "x" * 3200
+    monkeypatch.setattr(conftest, "MARGIN_DEDICATIONS", conftest.MARGIN_DEDICATIONS + [
+        {"version": 3, "text": long_page, "set_at": 1792000000.0, "why": "the long one"}])
+    _, p, conn = box
+    lines, ok = door.import_from_margin(p, conn, "claude")
+    assert ok, lines
+    assert any("raised from 3000 to 3500" in line for line in lines)
+    assert p.read("dedication")["text"] == long_page and p.read("dedication")["version"] == 3
+    assert p.options()[0]["caps"]["dedication"] == 3500 and "# characters" in open(p.yaml_path).read()
+
+
 def test_the_import_runs_once_and_never_clobbers(box):
     _, p, conn = box
     door.import_from_margin(p, conn, "claude")
@@ -168,9 +184,9 @@ def test_a_piton_problem_is_a_line_not_a_crash(box):
     cfg, p, _ = box
     p.set("dedication", "good")
     P._set_locked(p.page_path("dedication"), False)
-    open(p.page_path("dedication"), "w", encoding="utf-8").write("x" * 3000)
+    open(p.page_path("dedication"), "w", encoding="utf-8").write("x" * 3500)
     out = door.text(cfg, "claude")
-    assert "good" in out and "(piton: dedication.md is 3000 characters" in out
+    assert "good" in out and "(piton: dedication.md is 3500 characters" in out
 
 
 # ── the hooks ──

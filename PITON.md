@@ -70,7 +70,7 @@ schema: 1                 # the file's format; a newer kbh reads an older one
 dedication: self          # self | operator | off
 preface: operator         # self | operator | off
 caps:
-  dedication: 2000        # characters; Margin's limits, carried over
+  dedication: 3000        # characters: what every session reads at the door
   preface: 8000
 ```
 

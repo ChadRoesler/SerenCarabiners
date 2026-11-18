@@ -77,7 +77,10 @@ DEFAULTS: Dict[str, Any] = {
     "schema": SCHEMA,
     "dedication": "self",
     "preface": "operator",
-    "caps": {"dedication": 2000, "preface": 8000},     # Margin's limits, carried over
+    # The dedication cap is the context budget every session pays at the door. 3000
+    # since 17 Nov 2026: Margin's 2000 was already 253 under the real v6. The box owns
+    # this number; the Workbench only stops runaway writes (8000), so the two never drift.
+    "caps": {"dedication": 3000, "preface": 8000},
 }
 CAP_MAX = 64 * 1024
 _VERSION_FILE = re.compile(r"^(\d+)\.md$")
@@ -91,7 +94,7 @@ schema: 1
 dedication: self
 preface: operator
 caps:                     # characters
-  dedication: 2000
+  dedication: 3000
   preface: 8000
 """
 

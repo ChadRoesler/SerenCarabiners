@@ -296,6 +296,26 @@ def import_from_margin(p: "_piton.Piton", connection: str, carabiner: str) -> Tu
         if not versions:
             lines.append(f"{page}: Margin has none")
             continue
+        # A page Margin already holds is history, not a new write: the cap must
+        # fit it, never skip it. 17 Nov 2026, the first real migration: Margin's
+        # v6 dedication was 2253 characters against a cap of 2000, so v6 was
+        # skipped and the piton's page would have been v5 - an older self at
+        # the door. Raise the cap in piton.yaml to fit, and say so.
+        longest = max(len(_piton._clean(v["text"])) for v in versions)
+        cap = p.options()[0]["caps"][page]
+        if longest > cap:
+            from . import yamledit
+            new_cap = -(-longest // 500) * 500                  # the next 500 up: room for the next edit
+            try:
+                text = open(p.yaml_path, encoding="utf-8").read()
+                yamledit.write(p.yaml_path, yamledit.set(text, f"caps.{page}", new_cap))
+                lines.append(f"{page}: Margin's longest version is {longest} characters; the cap in piton.yaml "
+                             f"is raised from {cap} to {new_cap} so every version comes across")
+            except (OSError, ValueError) as e:
+                lines.append(f"{page}: Margin's longest version is {longest} characters and the cap of {cap} could "
+                             f"not be raised ({e}); raise caps.{page} in piton.yaml, then piton import")
+                ok = False
+                continue
         brought = 0
         for v in versions:
             try:
