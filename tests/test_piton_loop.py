@@ -182,6 +182,11 @@ def test_which_route_is_the_workbench(tmp_path, workbench):
     assert door.workbench_connection(config.load(str(two))) == ""
     two.write_text("carabiner: claude\nworkbench: memory\nservers:\n  memory: m.yaml\n  loci: l.yaml\n", encoding="utf-8")
     assert door.workbench_connection(config.load(str(two))).endswith("m.yaml")
+    # Starwright's card: <instance>-workbench beside --server extras
+    two.write_text("carabiner: claude\nservers:\n  ada-workbench: w.yaml\n  memory: m.yaml\n", encoding="utf-8")
+    assert door.workbench_connection(config.load(str(two))).endswith("w.yaml")
+    two.write_text("carabiner: claude\nservers:\n  a-workbench: a.yaml\n  b-workbench: b.yaml\n", encoding="utf-8")
+    assert door.workbench_connection(config.load(str(two))) == "", "two Workbenches: say which with workbench:"
 
 
 # ── the settings form ──

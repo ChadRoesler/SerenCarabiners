@@ -88,12 +88,17 @@ PULL_TIMEOUT = 1.5               # LAN: a Workbench that has not answered in 1.5
 
 def workbench_connection(cfg: Any) -> str:
     """Which route is the Workbench: the yaml's `workbench: NAME`, else the
-    one server when there is only one (the single-door shape), else none."""
+    one server when there is only one (the single-door shape), else the one
+    server named `<instance>-workbench` (Starwright's card registers it under
+    that name beside any --server extras, 18 Nov 2026), else none."""
     if cfg is None:
         return ""
     name = str(cfg.extra.get("workbench") or "").strip()
     if not name and len(cfg.servers) == 1:
         name = next(iter(cfg.servers))
+    if not name:
+        named = [n for n in cfg.servers if n == "workbench" or n.endswith("-workbench")]
+        name = named[0] if len(named) == 1 else ""
     return cfg.connection(name) if name and name in cfg.servers else ""
 
 
