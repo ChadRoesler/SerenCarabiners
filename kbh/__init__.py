@@ -28,7 +28,7 @@ seren_meninges and PyYAML are used when they are there and not required.
 """
 from __future__ import annotations
 
-__version__ = "5.7.0"
+__version__ = "5.8.0"
 
 
 def build_id() -> str:
