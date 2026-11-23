@@ -39,7 +39,12 @@ SHIPPED_MODELS = [
     ("claude-opus-5-5", "Claude Opus 5.5"),
     ("claude-sonnet-5-5", "Claude Sonnet 5.5"),
     ("claude-haiku-5-5", "Claude Haiku 5.5"),
+    ("claude-fable-5-2", "Claude Fable 5.2"),
     ("claude-fable-5-1", "Claude Fable 5.1"),
+    # Claude Code's aliases for the latest of each line
+    ("opus", "Opus (the latest)"),
+    ("sonnet", "Sonnet (the latest)"),
+    ("haiku", "Haiku (the latest)"),
 ]
 
 TOOLS = [
@@ -48,6 +53,27 @@ TOOLS = [
     ("Bash", "Run commands"),
     ("WebSearch", "Search the web"),
     ("WebFetch", "Open web pages"),
+]
+
+# How hard a session thinks (`claude --effort`). Blank: Claude Code's own,
+# which is per model (settings.json modelSettings) or the model's default.
+EFFORTS = [
+    choice("", "Claude Code's own setting", "Whatever Claude Code is set to for the model."),
+    choice("low", "Low", "Quick and cheap. Fine for small jobs."),
+    choice("medium", "Medium", "The default on Opus 5.5."),
+    choice("high", "High", "Thinks harder. Good for real work."),
+    choice("xhigh", "Extra high", "Harder again: long coding and agent work."),
+    choice("max", "Max", "As hard as it can, whatever it costs."),
+]
+
+# What comes back of the thinking (`claude --thinking-display`). The raw chain
+# of thought never comes back from the newer models; the most there is, is a
+# summary (22 Nov 2026: Chad asked for the thinking to be visible).
+THINKING_DISPLAYS = [
+    choice("", "Claude Code's own setting", "showThinkingSummaries in its settings.json, else hidden when headless."),
+    choice("summarized", "A summary", "A readable summary of the thinking."),
+    choice("highlights", "Highlights", "The parts the model marks as worth showing."),
+    choice("omitted", "Hidden", "It still thinks, and it is still billed; nothing is shown."),
 ]
 
 MODELS_URL = "https://api.anthropic.com/v1/models?limit=100"
@@ -90,4 +116,10 @@ def fields(servers: List[str], discover: bool = False) -> List[Field]:
         Field("session.model", "Model", kind="choice", default="", free_text=True, applies="next_wake",
               pattern=MODEL_ID, choices=[choice("", "Claude Code's own default")] + models,
               help="The model a wake runs on here. Any model id can be typed in."),
+        Field("session.effort", "How hard it thinks", kind="choice", default="", choices=EFFORTS,
+              help="The default for sessions Seren starts on this box. A Symposium project or chat can still ask for its own."),
+        Field("session.thinking_display", "What it shows of its thinking", kind="choice", default="",
+              choices=THINKING_DISPLAYS,
+              help="Only ever a summary: the newer models never hand back the thinking itself. "
+                   "A Symposium project or chat can still ask for its own."),
     ]

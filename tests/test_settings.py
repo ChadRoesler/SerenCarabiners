@@ -146,7 +146,7 @@ def test_show_says_how_a_token_is_kept_and_never_the_token(clipped, capsys):
     assert {"name": "bookmark", "where": "http://nuc:7251", "token": "inline"} in m["connections"]
     by_key = {f["key"]: f for f in m["fields"]}
     assert {"project", "wake.timeout_seconds", "framing", "session.permission_mode",
-            "session.allowed_tools", "session.model"} <= set(by_key)
+            "session.allowed_tools", "session.model", "session.effort", "session.thinking_display"} <= set(by_key)
     assert "python" not in by_key and "servers" not in by_key, "how it was clipped on is not a form's business"
     assert by_key["wake.timeout_seconds"]["value"] == 900 and "Nobody is in the room" in by_key["framing"]["value"]
     assert "bypassPermissions" not in [c["value"] for c in by_key["session.permission_mode"]["choices"]]
@@ -173,6 +173,27 @@ def test_a_wake_runs_on_the_boxes_model(clipped, own_settings, fake_claude, tmp_
     assert cli.main(["claude", "config", "unset", "session.model", "--config", yaml]) == 0
     assert cli.main(["claude", "wake", "--config", yaml, "--run", "again"]) == 0
     assert "--model" not in fake_claude.calls()[-1]["argv"]
+
+
+def test_a_wake_thinks_as_hard_as_the_box_says(clipped, own_settings, fake_claude, tmp_path, capsys):
+    """session.effort and session.thinking_display go on the wake's command
+    line (22 Nov 2026); a value Claude Code does not take never does."""
+    json.dump({"mcpServers": {"ada-workbench": {"type": "http", "url": "http://nuc:7255/mcp"}}, "projects": {}},
+              open(own_settings, "w"))
+    home_bin = tmp_path / "home" / ".local" / "bin"; home_bin.mkdir(parents=True)
+    shutil.copy(fake_claude.path, home_bin / os.path.basename(fake_claude.path))
+    yaml = str(clipped)
+    assert cli.main(["claude", "config", "set", "session.effort=xhigh", "--config", yaml]) == 0
+    assert cli.main(["claude", "config", "set", "session.thinking_display=summarized", "--config", yaml]) == 0
+    assert cli.main(["claude", "wake", "--config", yaml, "--run", "brief please"]) == 0
+    argv = fake_claude.calls()[-1]["argv"]
+    assert argv[argv.index("--effort") + 1] == "xhigh"
+    assert argv[argv.index("--thinking-display") + 1] == "summarized"
+    rc, out, _ = _run(capsys, "claude", "config", "set", "session.effort=x&calc.exe", "--config", yaml, "--json")
+    assert rc == 1
+    assert cli.main(["claude", "config", "unset", "session.effort", "--config", yaml]) == 0
+    assert cli.main(["claude", "wake", "--config", yaml, "--run", "again"]) == 0
+    assert "--effort" not in fake_claude.calls()[-1]["argv"]
 
 
 # ── what the review of 22 Oct 2026 found ─────────────────────────────────

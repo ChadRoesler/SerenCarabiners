@@ -175,6 +175,13 @@ def run(argv: List[str]) -> int:
     # box, Opus on another. Blank leaves it to Claude Code.
     model = str((cfg.session.get("model") if cfg else "") or "")
     model_args = ["--model", model] if model else []
+    # session.effort and session.thinking_display, only the values Claude Code
+    # takes (a hand-edited yaml goes on claude.cmd's command line too).
+    from .fields import EFFORTS, THINKING_DISPLAYS
+    for key, flag, ok in (("effort", "--effort", EFFORTS), ("thinking_display", "--thinking-display", THINKING_DISPLAYS)):
+        v = str((cfg.session.get(key) if cfg else "") or "")
+        if v and v in {c["value"] for c in ok}:
+            model_args += [flag, v]
 
     # The command a hook or an Observatory holds. With a config, it names the
     # config and nothing else: project, framing and python all come from there
